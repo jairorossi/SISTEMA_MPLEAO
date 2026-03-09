@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Importar Tabela — MPLEÃO</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --border: #2a2f3e;
+    --accent: #3b7ff5;
+    --accent2: #22d3a5;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header .logo {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  header .sep { color: var(--border); font-size: 24px; }
+  header .title { font-size: 14px; color: var(--muted); font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  /* MAIN */
+  main { max-width: 1200px; margin: 0 auto; padding: 32px; }
+
+  /* STEPS */
+  .steps {
+    display: flex;
+    gap: 0;
+    margin-bottom: 36px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .step {
+    flex: 1;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+  .step:last-child { border-right: none; }
+  .step.active { opacity: 1; background: #1e2535; }
+  .step.done { opacity: 0.7; }
+  .step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .step.active .step-num { background: var(--accent); color: #fff; }
+  .step.done .step-num { background: var(--accent2); color: #0f1117; }
+  .step-label { font-size: 13px; font-weight: 600; }
+  .step-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* PANEL */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* TEXTAREA */
+  textarea {
+    width: 100%;
+    height: 280px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    line-height: 1.6;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .hint {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.5;
+  }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 22px;
+    border-radius: 8px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #5590f7; transform: translateY(-1px); }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+  .btn-success { background: var(--accent2); color: #0f1117; }
+  .btn-success:hover { background: #34e8b8; transform: translateY(-1px); }
+  .btn-success:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+  .btn-danger { background: var(--danger); color: #fff; }
+
+  .btn-row { display: flex; gap: 12px; align-items: center; margin-top: 20px; flex-wrap: wrap; }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--accent2);
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* FILTER BAR */
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filter-bar input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 8px 14px;
+    outline: none;
+    flex: 1;
+    min-width: 200px;
+    transition: border-color 0.2s;
+  }
+  .filter-bar input:focus { border-color: var(--accent); }
+  .filter-bar select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 8px 14px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* TABLE */
+  .table-wrap {
+    overflow-x: auto;
+    max-height: 460px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  thead th {
+    position: sticky;
+    top: 0;
+    background: #1e2535;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    z-index: 1;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  tbody tr:hover { background: #1a1f2e; }
+  tbody tr.row-branco { border-left: 3px solid #94a3b8; }
+  tbody tr.row-preto { border-left: 3px solid #475569; }
+  td {
+    padding: 9px 14px;
+    vertical-align: middle;
+  }
+  td .code {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(59,127,245,0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  td .price {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent2);
+  }
+  td .cat-tag {
+    font-size: 10px;
+    background: rgba(34,211,165,0.1);
+    color: var(--accent2);
+    border: 1px solid rgba(34,211,165,0.2);
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  td .cor-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  td .cor-branco {
+    background: rgba(148,163,184,0.15);
+    color: #cbd5e1;
+    border: 1px solid rgba(148,163,184,0.3);
+  }
+  td .cor-preto {
+    background: rgba(71,85,105,0.4);
+    color: #94a3b8;
+    border: 1px solid rgba(71,85,105,0.5);
+  }
+  .chk-cell { width: 36px; text-align: center; }
+  input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+
+  /* PROGRESS */
+  .progress-wrap { display: none; margin-top: 20px; }
+  .progress-wrap.visible { display: block; }
+  .progress-bar-outer {
+    background: var(--border);
+    border-radius: 100px;
+    height: 6px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .progress-bar-inner {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 100px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+  .progress-text {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 6px;
+  }
+
+  /* LOG */
+  .log-wrap {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.8;
+    display: none;
+  }
+  .log-wrap.visible { display: block; }
+  .log-ok { color: var(--accent2); }
+  .log-err { color: var(--danger); }
+  .log-info { color: var(--muted); }
+
+  /* BADGE */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .badge-warn { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid rgba(245,158,11,0.3); }
+  .badge-ok { background: rgba(34,211,165,0.12); color: var(--accent2); border: 1px solid rgba(34,211,165,0.25); }
+
+  /* SECTION */
+  #section-paste { display: block; }
+  #section-preview { display: none; }
+  #section-done { display: none; }
+
+  /* DONE */
+  .done-icon { font-size: 56px; margin-bottom: 16px; }
+  .done-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  .done-sub { color: var(--muted); font-size: 14px; }
+  .done-center { text-align: center; padding: 48px 0; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* RESPONSIVE */
+  @media (max-width: 640px) {
+    main { padding: 16px; }
+    .steps { flex-direction: column; }
+    .step { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">MPLEÃO</span>
+  <span class="sep">/</span>
+  <span class="title">Importador de Tabela de Produtos</span>
+</header>
+
+<main>
+
+  <!-- STEPS -->
+  <div class="steps">
+    <div class="step active" id="step1">
+      <div class="step-num">1</div>
+      <div>
+        <div class="step-label">Colar dados</div>
+        <div class="step-sub">Cole o conteúdo copiado da planilha</div>
+      </div>
+    </div>
+    <div class="step" id="step2">
+      <div class="step-num">2</div>
+      <div>
+        <div class="step-label">Revisar</div>
+        <div class="step-sub">Confira os produtos detectados</div>
+      </div>
+    </div>
+    <div class="step" id="step3">
+      <div class="step-num">3</div>
+      <div>
+        <div class="step-label">Importar</div>
+        <div class="step-sub">Enviar para o Firebase</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 1: PASTE -->
+  <div id="section-paste">
+    <div class="panel">
+      <div class="panel-title">📋 Dados da Planilha</div>
+      <textarea id="input-tabela" placeholder="Cole aqui o conteúdo copiado da planilha Excel (Ctrl+A → Ctrl+C dentro do Excel, depois cole aqui)..."></textarea>
+      <div class="hint">
+        💡 <span>No Excel, selecione tudo com <strong>Ctrl+A</strong>, copie com <strong>Ctrl+C</strong> e cole aqui. O sistema detecta automaticamente os produtos, códigos e valores para BRANCO e PRETO.</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="processarTabela()">🔍 Processar Tabela</button>
+        <button class="btn btn-ghost" onclick="carregarExemplo()">Carregar Exemplo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: PREVIEW -->
+  <div id="section-preview">
+    <div class="panel">
+      <div class="panel-title">📊 Produtos Detectados</div>
+
+      <div class="stats-bar" id="stats-bar"></div>
+
+      <div class="filter-bar">
+        <input type="text" id="filtro-busca" placeholder="🔍 Filtrar por descrição ou código..." oninput="filtrarTabela()">
+        <select id="filtro-cor" onchange="filtrarTabela()">
+          <option value="">Todas as cores</option>
+          <option value="BRANCO">Branco</option>
+          <option value="PRETO">Preto</option>
+        </select>
+        <select id="filtro-cat" onchange="filtrarTabela()">
+          <option value="">Todas as categorias</option>
+        </select>
+        <label style="font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
+          <input type="checkbox" id="chk-todos" onchange="toggleTodos(this.checked)"> Selecionar todos
+        </label>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk-cell"><input type="checkbox" id="chk-header" onchange="toggleTodos(this.checked)"></th>
+              <th>Código</th>
+              <th>Descrição</th>
+              <th>Categoria</th>
+              <th>Cor</th>
+              <th>Valor</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-preview"></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-success" id="btn-importar" onclick="iniciarImportacao()">
+          ✅ Importar Selecionados para o Firebase
+        </button>
+        <button class="btn btn-ghost" onclick="voltarPaste()">← Voltar</button>
+        <span id="sel-count" style="font-size:12px; color:var(--muted); margin-left:auto;"></span>
+      </div>
+
+      <!-- PROGRESS -->
+      <div class="progress-wrap" id="progress-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:13px; font-weight:600;">Importando...</span>
+          <span id="progress-pct" style="font-family:var(--mono); font-size:12px; color:var(--accent2);">0%</span>
+        </div>
+        <div class="progress-bar-outer">
+          <div class="progress-bar-inner" id="progress-bar"></div>
+        </div>
+        <div class="progress-text" id="progress-text">Aguardando...</div>
+      </div>
+      <div class="log-wrap" id="log-wrap"></div>
+    </div>
+  </div>
+
+  <!-- SECTION 3: DONE -->
+  <div id="section-done">
+    <div class="panel">
+      <div class="done-center">
+        <div class="done-icon">🎉</div>
+        <div class="done-title">Importação Concluída!</div>
+        <div class="done-sub" id="done-msg">Produtos importados com sucesso.</div>
+        <div class="btn-row" style="justify-content:center; margin-top:28px;">
+          <button class="btn btn-primary" onclick="voltarInicio()">📋 Importar outra tabela</button>
+          <button class="btn btn-ghost" onclick="window.close()">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBb8UGRV8qcjV6-_kd7WucWhoJBKSHcUac",
+  authDomain: "mpleaoerp.firebaseapp.com",
+  projectId: "mpleaoerp",
+  storageBucket: "mpleaoerp.appspot.com",
+  messagingSenderId: "449703614",
+  appId: "1:449703614:web:mpleaoerp"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+window._db = db;
+window._collection = collection;
+window._addDoc = addDoc;
+window._serverTimestamp = serverTimestamp;
+window._getDocs = getDocs;
+
+// Busca próximo código disponível
+window.buscarProximoCodigo = async function() {
+  try {
+    const snap = await getDocs(collection(db, "produtos"));
+    let max = 0;
+    snap.forEach(d => {
+      const c = parseInt(d.data().codigo);
+      if (!isNaN(c) && c > max) max = c;
+    });
+    return max + 1;
+  } catch(e) {
+    return 1000;
+  }
+};
+
+</script>
+
+<script>
+// ==========================================
+// PARSER DA TABELA
+// ==========================================
+
+let produtosParsed = [];
+let produtosFiltrados = [];
+let selecionados = new Set();
+
+function limparDescricao(raw) {
+  // Remove tabs múltiplos, compacta espaços, remove parênteses de composição
+  return raw
+    .replace(/\t+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .replace(/\([\dL\s\-V]+\)/gi, '')
+    .trim();
+}
+
+function parsearValor(str) {
+  if (!str) return null;
+  const limpo = str.toString()
+    .replace('R$', '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const n = parseFloat(limpo);
+  return isNaN(n) ? null : n;
+}
+
+function isLinhaCategoria(cols) {
+  // Linha de categoria: texto longo na primeira coluna, sem códigos numéricos longos
+  const texto = cols.join(' ').trim();
+  if (!texto) return false;
+  const primeiras = cols.slice(0, 6).join(' ').trim();
+  // Tem texto mas não tem padrão de código numérico de 5+ dígitos
+  const temCodigo = /\b\d{5,}\b/.test(texto);
+  const temValor = /\d{3,}[,\.]\d{2}/.test(texto);
+  const textoSignificativo = primeiras.length > 5 && /[A-Z]{3,}/.test(primeiras.toUpperCase());
+  return textoSignificativo && !temCodigo && !temValor;
+}
+
+function isLinhaCabecalho(cols) {
+  const t = cols.join('\t').toUpperCase();
+  return t.includes('CÓDIGO') || t.includes('CODIGO') || t.includes('BRANCO') || t.includes('PRETO');
+}
+
+function extrairProdutosDaLinha(cols, categoria) {
+  // Normaliza: junta colunas até encontrar os dois códigos + valores
+  const textoCompleto = cols.join('\t');
+  
+  // Padrão: descrição ... CódigoB ... ValorB ... CódigoPR ... ValorPR
+  // Os códigos ficam nas últimas colunas, a descrição nas primeiras
+  
+  // Remove colunas vazias das pontas direita
+  let colsLimpos = [...cols];
+  while (colsLimpos.length > 0 && !colsLimpos[colsLimpos.length-1]?.toString().trim()) {
+    colsLimpos.pop();
+  }
+
+  // Procura por pares (código, valor) da direita para esquerda
+  // Um código é: sequência numérica de 4-10 dígitos
+  // Um valor é: número com vírgula ou ponto decimal e casas decimais
+  
+  const tokens = colsLimpos.map(c => c?.toString().trim()).filter(Boolean);
+  
+  let codigoPR = null, valorPR = null, codIdxPR = -1;
+  let codigoBR = null, valorBR = null, codIdxBR = -1;
+  
+  // Varre da direita buscando: valor, código, valor, código
+  let encontrados = [];
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    const v = parsearValor(t);
+    if (v !== null && v > 10) { // é um valor
+      // próximo código à esquerda (ignora "R$")
+      for (let j = i - 1; j >= 0; j--) {
+        const cand = tokens[j].replace('R$','').trim();
+        if (/^\d{4,10}$/.test(cand)) {
+          encontrados.push({ codigo: cand, valor: v, tokenIdx: j });
+          i = j; // pula para antes deste código
+          break;
+        }
+        if (cand !== '' && cand !== 'R$') break; // texto no meio, para
+      }
+      if (encontrados.length === 2) break;
+    }
+  }
+  
+  if (encontrados.length < 1) return [];
+  
+  // encontrados[0] = PRETO (mais à direita), encontrados[1] = BRANCO
+  codigoPR = encontrados[0]?.codigo;
+  valorPR  = encontrados[0]?.valor;
+  codigoBR = encontrados[1]?.codigo;
+  valorBR  = encontrados[1]?.valor;
+  
+  // Descrição: tudo antes do primeiro código encontrado
+  const idxCorte = encontrados.length > 1 ? Math.min(encontrados[0].tokenIdx, encontrados[1].tokenIdx) : encontrados[0].tokenIdx;
+  const descTokens = tokens.slice(0, idxCorte).filter(t => t !== 'R$');
+  const desc = limparDescricao(descTokens.join(' '));
+  
+  if (!desc || desc.length < 3) return [];
+  
+  const resultado = [];
+  
+  if (codigoBR && valorBR) {
+    resultado.push({
+      codigo: codigoBR,
+      descricao: desc + ' - BRANCO',
+      categoria: categoria,
+      cor: 'BRANCO',
+      valor_base: valorBR,
+      fornecedor: 'ALUMÍNIO',
+      unidade: 'UN'
+    });
+  }
+  
+  if (codigoPR && valorPR) {
+    resultado.push({
+      codigo: codigoPR,
+      descricao: desc + ' - PRETO',
+      categoria: categoria,
+      cor: 'PRETO',
+      valor_base: valorPR,
+      fornecedor: 'ALUMÍNIO',
+      unidade: 'UN'
+    });
+  }
+  
+  // Se só encontrou um (alguns produtos têm só uma cor)
+  if (resultado.length === 0 && encontrados[0]) {
+    resultado.push({
+      codigo: encontrados[0].codigo,
+      descricao: desc,
+      categoria: categoria,
+      cor: '',
+      valor_base: encontrados[0].valor,
+      fornecedor: 'ALUMÍNIO',
+      unidade: 'UN'
+    });
+  }
+  
+  return resultado;
+}
+
+function processarTabela() {
+  const raw = document.getElementById('input-tabela').value.trim();
+  if (!raw) {
+    alert('Cole os dados da planilha primeiro!');
+    return;
+  }
+  
+  const linhas = raw.split('\n');
+  produtosParsed = [];
+  let categoriaAtual = 'ALUMÍNIO';
+  
+  for (const linha of linhas) {
+    const cols = linha.split('\t');
+    const textoLinha = linha.trim();
+    
+    if (!textoLinha) continue;
+    if (isLinhaCabecalho(cols)) continue;
+    
+    // Detecta categoria
+    if (isLinhaCategoria(cols)) {
+      const txt = limparDescricao(cols.slice(0,6).join(' ')).toUpperCase();
+      if (txt.length > 3 && !txt.includes('TABELA') && !txt.includes('ESQUADRIA') && !txt.includes('LINHA')) {
+        categoriaAtual = txt;
+      }
+      continue;
+    }
+    
+    // Tenta extrair produtos
+    const prods = extrairProdutosDaLinha(cols, categoriaAtual);
+    produtosParsed.push(...prods);
+  }
+  
+  if (produtosParsed.length === 0) {
+    alert('Nenhum produto detectado. Verifique se os dados foram colados corretamente.');
+    return;
+  }
+  
+  // Inicializa seleção (todos marcados)
+  selecionados = new Set(produtosParsed.map((_, i) => i));
+  
+  renderizarPreview();
+  setStep(2);
+  document.getElementById('section-paste').style.display = 'none';
+  document.getElementById('section-preview').style.display = 'block';
+}
+
+function renderizarPreview() {
+  const busca = document.getElementById('filtro-busca').value.toLowerCase();
+  const filtroCor = document.getElementById('filtro-cor').value;
+  const filtroCat = document.getElementById('filtro-cat').value;
+  
+  produtosFiltrados = produtosParsed.filter((p, i) => {
+    const matchBusca = !busca || p.descricao.toLowerCase().includes(busca) || p.codigo.includes(busca);
+    const matchCor = !filtroCor || p.cor === filtroCor;
+    const matchCat = !filtroCat || p.categoria === filtroCat;
+    return matchBusca && matchCor && matchCat;
+  });
+  
+  const tbody = document.getElementById('tbody-preview');
+  tbody.innerHTML = '';
+  
+  produtosFiltrados.forEach((p, fi) => {
+    const i = produtosParsed.indexOf(p);
+    const checked = selecionados.has(i) ? 'checked' : '';
+    const corClass = p.cor === 'BRANCO' ? 'row-branco' : p.cor === 'PRETO' ? 'row-preto' : '';
+    const corTag = p.cor === 'BRANCO'
+      ? '<span class="cor-tag cor-branco">⬜ BRANCO</span>'
+      : p.cor === 'PRETO'
+      ? '<span class="cor-tag cor-preto">⬛ PRETO</span>'
+      : '';
+    
+    tbody.innerHTML += `
+      <tr class="${corClass}" data-idx="${i}">
+        <td class="chk-cell"><input type="checkbox" ${checked} onchange="toggleItem(${i}, this.checked)"></td>
+        <td><span class="code">${p.codigo}</span></td>
+        <td style="max-width:320px; font-size:12px;">${p.descricao}</td>
+        <td><span class="cat-tag">${p.categoria || '-'}</span></td>
+        <td>${corTag}</td>
+        <td><span class="price">R$ ${p.valor_base.toFixed(2).replace('.',',')}</span></td>
+      </tr>
+    `;
+  });
+  
+  // Stats
+  const total = produtosParsed.length;
+  const brancos = produtosParsed.filter(p=>p.cor==='BRANCO').length;
+  const pretos = produtosParsed.filter(p=>p.cor==='PRETO').length;
+  const cats = [...new Set(produtosParsed.map(p=>p.categoria))].length;
+  
+  document.getElementById('stats-bar').innerHTML = `
+    <div class="stat"><div class="stat-val">${total}</div><div class="stat-label">Total de produtos</div></div>
+    <div class="stat"><div class="stat-val" style="color:#cbd5e1">${brancos}</div><div class="stat-label">⬜ Brancos</div></div>
+    <div class="stat"><div class="stat-val" style="color:#64748b">${pretos}</div><div class="stat-label">⬛ Pretos</div></div>
+    <div class="stat"><div class="stat-val" style="color:var(--warn)">${cats}</div><div class="stat-label">Categorias</div></div>
+  `;
+  
+  // Popula filtro de categoria
+  const catSelect = document.getElementById('filtro-cat');
+  const catAtual = catSelect.value;
+  const categorias = [...new Set(produtosParsed.map(p=>p.categoria))].sort();
+  catSelect.innerHTML = '<option value="">Todas as categorias</option>';
+  categorias.forEach(c => {
+    catSelect.innerHTML += `<option value="${c}" ${c===catAtual?'selected':''}>${c}</option>`;
+  });
+  
+  atualizarContador();
+}
+
+function filtrarTabela() { renderizarPreview(); }
+
+function toggleItem(idx, checked) {
+  if (checked) selecionados.add(idx);
+  else selecionados.delete(idx);
+  atualizarContador();
+}
+
+function toggleTodos(checked) {
+  document.getElementById('chk-header').checked = checked;
+  document.getElementById('chk-todos').checked = checked;
+  produtosFiltrados.forEach(p => {
+    const i = produtosParsed.indexOf(p);
+    if (checked) selecionados.add(i);
+    else selecionados.delete(i);
+  });
+  renderizarPreview();
+}
+
+function atualizarContador() {
+  const n = selecionados.size;
+  document.getElementById('sel-count').textContent = `${n} produto${n!==1?'s':''} selecionado${n!==1?'s':''}`;
+  document.getElementById('btn-importar').disabled = n === 0;
+}
+
+// ==========================================
+// IMPORTAÇÃO FIREBASE
+// ==========================================
+
+async function iniciarImportacao() {
+  const lista = produtosParsed.filter((_, i) => selecionados.has(i));
+  if (lista.length === 0) return;
+
+  document.getElementById('btn-importar').disabled = true;
+  document.getElementById('progress-wrap').classList.add('visible');
+  document.getElementById('log-wrap').classList.add('visible');
+
+  const logEl = document.getElementById('log-wrap');
+  const barEl = document.getElementById('progress-bar');
+  const pctEl = document.getElementById('progress-pct');
+  const txtEl = document.getElementById('progress-text');
+
+  let ok = 0, erros = 0;
+  const proximoCodigo = await window.buscarProximoCodigo();
+
+  for (let i = 0; i < lista.length; i++) {
+    const p = lista[i];
+    const pct = Math.round(((i + 1) / lista.length) * 100);
+    barEl.style.width = pct + '%';
+    pctEl.textContent = pct + '%';
+    txtEl.textContent = `[${i+1}/${lista.length}] ${p.descricao}`;
+
+    try {
+      await window._addDoc(
+        window._collection(window._db, 'produtos'),
+        {
+          codigo:        p.codigo,
+          descricao:     p.descricao,
+          categoria:     p.categoria || 'ALUMÍNIO',
+          cor:           p.cor || '',
+          fornecedor:    p.fornecedor || '',
+          unidade:       p.unidade || 'UN',
+          valor_base:    p.valor_base,
+          custo:         0,
+          estoque_atual: 0,
+          estoque_minimo: 0,
+          observacoes:   'Importado via tabela 2026',
+          data_cadastro: window._serverTimestamp()
+        }
+      );
+      ok++;
+      logEl.innerHTML += `<div class="log-ok">✅ ${p.codigo} — ${p.descricao}</div>`;
+    } catch(e) {
+      erros++;
+      logEl.innerHTML += `<div class="log-err">❌ ERRO ${p.codigo}: ${e.message}</div>`;
+    }
+
+    logEl.scrollTop = logEl.scrollHeight;
+    await new Promise(r => setTimeout(r, 80)); // pequena pausa
+  }
+
+  document.getElementById('done-msg').textContent =
+    `${ok} produto${ok!==1?'s':''} importado${ok!==1?'s':''} com sucesso${erros>0?' · '+erros+' erro(s)':''}.`;
+
+  setTimeout(() => {
+    setStep(3);
+    document.getElementById('section-preview').style.display = 'none';
+    document.getElementById('section-done').style.display = 'block';
+  }, 800);
+}
+
+function voltarPaste() {
+  document.getElementById('section-preview').style.display = 'none';
+  document.getElementById('section-paste').style.display = 'block';
+  setStep(1);
+}
+
+function voltarInicio() {
+  document.getElementById('section-done').style.display = 'none';
+  document.getElementById('section-paste').style.display = 'block';
+  document.getElementById('input-tabela').value = '';
+  document.getElementById('progress-wrap').classList.remove('visible');
+  document.getElementById('log-wrap').classList.remove('visible');
+  setStep(1);
+}
+
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step'+i);
+    el.classList.remove('active','done');
+    if (i < n) el.classList.add('done');
+    if (i === n) el.classList.add('active');
+    if (i < n) el.querySelector('.step-num').textContent = '✓';
+    else el.querySelector('.step-num').textContent = i;
+  });
+}
+
+function carregarExemplo() {
+  const exemplo = `ESQUADRIAS DE ALUMINIO\t\t\t\t\t\t\t\t\t\t\t\t\t\t
+TABELA 2026\t\t\t\t\t\t\t\t\t\t\t\t\t\t
+\t\t\t\t\t\t\t\t\t\t\tBRANCO\t\t\tPRETO\t\t
+PORTA  BALCAO 3 FOLHAS MOVEL\t\t\t\t\t\t\t\t\t\t\tCÓDIGO\tVALOR\t\tCÓDIGO\tVALOR\t
+PTA\tBALCAO\t3F\tMOV\t120X210X12,2\t\t(2L\t-\t1V)\t2533101\tR$\t2.409,80\t2533100\tR$\t2.530,30
+PTA\tBALCAO\t3F\tMOV\t150X210X12,2\t\t(2L\t-\t1V)\t2533111\tR$\t2.777,48\t25331110\tR$\t2.916,36
+PTA\tBALCAO\t3F\tMOV\t160X210X12,2\t\t(2L\t-\t1V)\t2533118\tR$\t3.054,00\t25331180\tR$\t3.206,70
+PTA\tBALCAO\t3F\tMOV\t200X210X12,2\t\t(2L\t-\t1V)\t2532021\tR$\t3.192,76\t25331120\tR$\t3.352,40
+\t\t\t\t\t\t\t\t\t\t\tBRANCO\t\t\tPRETO\t\t
+PORTAS PALHETA SUSPENSA\t\t\t\t\t\t\t\t\t\t\tCÓDIGO\tVALOR\t\tCÓDIGO\tVALOR\t
+PTA\tPALHETA\t\t80/5X210X4\t\t\tDIR\t\t\t252811\tR$\t1239,43\t252841\tR$\t1301,40
+PTA\tPALHETA\t\t80/5X210X4\t\t\tESQ\t\t\t252812\tR$\t1239,43\t252842\tR$\t1301,40`;
+  document.getElementById('input-tabela').value = exemplo;
+}
+
+// Inicializa contador
+window.addEventListener('load', () => {
+  document.getElementById('btn-importar') && (document.getElementById('btn-importar').disabled = true);
+});
+
+window.processarTabela = processarTabela;
+window.filtrarTabela = filtrarTabela;
+window.toggleItem = toggleItem;
+window.toggleTodos = toggleTodos;
+window.iniciarImportacao = iniciarImportacao;
+window.voltarPaste = voltarPaste;
+window.voltarInicio = voltarInicio;
+window.carregarExemplo = carregarExemplo;
+</script>
+
+</body>
+</html>
