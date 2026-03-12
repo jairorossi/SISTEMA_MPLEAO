@@ -693,11 +693,13 @@ async function gerarPDF() {
             const opt = select.options[select.selectedIndex];
             desc = opt?.dataset?.desc || opt?.text?.split(' - ')[0] || '';
         }
-        const valorUnit = linha.querySelector('.valor-item')?.value || '';
+        // Valor unitário: lê do campo e formata com milhar
+        const valorRaw = parseFloat((linha.querySelector('.valor-item')?.value || '0').replace(/[^\d,]/g,'').replace(',','.')) || 0;
+        const valorUnit = formatarValorReais(valorRaw);
         const total = linha.querySelector('.total-linha')?.innerText || 'R$ 0,00';
         if (desc) {
             linhasHtml += `
-                <tr style="border-bottom:1px solid #ddd;">
+                <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:8px;text-align:center;border:1px solid #ddd;">${qtd}</td>
                     <td style="padding:8px;border:1px solid #ddd;">${desc}</td>
                     <td style="padding:8px;text-align:right;border:1px solid #ddd;">${valorUnit}</td>
@@ -705,6 +707,30 @@ async function gerarPDF() {
                 </tr>`;
         }
     });
+
+    // Lê breakdown de totais direto dos elementos já formatados na tela
+    const elSubtotal  = document.getElementById('display-subtotal')?.innerText  || '';
+    const elDesconto  = document.getElementById('display-desconto')?.innerText  || '';
+    const elAcrescimo = document.getElementById('display-acrescimo')?.innerText || '';
+    const elFrete     = document.getElementById('display-frete-final')?.innerText || '';
+    const elTaxa      = document.getElementById('display-taxa-final');
+    const taxaVisivel = elTaxa && !elTaxa.classList.contains('hidden');
+    const elTaxaText  = taxaVisivel ? elTaxa.innerText : '';
+
+    // Formata o total com milhar corretamente
+    const totalNum = parseFloat((btn.getAttribute('data-total') || '0').replace(/\./g,'').replace(',','.'));
+    const totalFormatado = formatarValorReais(totalNum);
+
+    // Monta linhas do breakdown — só mostra desconto/acréscimo/frete se diferente de zero
+    const descontoNum  = parseFloat((elDesconto.match(/[\d,.]+/) || ['0'])[0].replace(/\./g,'').replace(',','.')) || 0;
+    const acrescimoNum = parseFloat((elAcrescimo.match(/[\d,.]+/) || ['0'])[0].replace(/\./g,'').replace(',','.')) || 0;
+    const freteNum     = parseFloat((elFrete.match(/[\d,.]+/) || ['0'])[0].replace(/\./g,'').replace(',','.')) || 0;
+
+    let breakdownHtml = `<tr><td style="padding:5px 10px;color:#555;">Subtotal</td><td style="padding:5px 10px;text-align:right;">${elSubtotal.replace('Subtotal: ','')}</td></tr>`;
+    if (descontoNum  > 0) breakdownHtml += `<tr><td style="padding:5px 10px;color:#16a34a;">Desconto</td><td style="padding:5px 10px;text-align:right;color:#16a34a;">- ${formatarValorReais(descontoNum)}</td></tr>`;
+    if (acrescimoNum > 0) breakdownHtml += `<tr><td style="padding:5px 10px;color:#d97706;">Acréscimo</td><td style="padding:5px 10px;text-align:right;color:#d97706;">+ ${formatarValorReais(acrescimoNum)}</td></tr>`;
+    if (freteNum     > 0) breakdownHtml += `<tr><td style="padding:5px 10px;color:#555;">Frete</td><td style="padding:5px 10px;text-align:right;">${formatarValorReais(freteNum)}</td></tr>`;
+    if (taxaVisivel && elTaxaText) breakdownHtml += `<tr><td style="padding:5px 10px;color:#7c3aed;">Taxa Cartão</td><td style="padding:5px 10px;text-align:right;color:#7c3aed;">${elTaxaText.replace(/.*: /,'')}</td></tr>`;
 
     const conteudo = `
         <div style="padding:30px;font-family:Arial,sans-serif;color:#333;max-width:800px;margin:0 auto;">
@@ -723,7 +749,7 @@ async function gerarPDF() {
                 ${dadosClienteHtml}
             </div>
 
-            <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;border:1px solid #ddd;">
+            <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;border:1px solid #ddd;">
                 <thead>
                     <tr style="background:#e0e0e0;">
                         <th style="padding:10px;border:1px solid #ddd;width:50px;text-align:center;">Qtd</th>
@@ -735,11 +761,16 @@ async function gerarPDF() {
                 <tbody>${linhasHtml}</tbody>
             </table>
 
-            <div style="text-align:right;margin-bottom:48px;">
-                <div style="display:inline-block;background:#f0f0f0;padding:15px 25px;border-radius:6px;border:1px solid #999;">
-                    <span style="font-size:11px;text-transform:uppercase;display:block;color:#666;margin-bottom:4px;">Total a Pagar</span>
-                    <strong style="font-size:24px;">R$ ${totalGeral}</strong>
-                </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:40px;">
+                <table style="font-size:13px;min-width:280px;">
+                    <tbody>
+                        ${breakdownHtml}
+                        <tr style="border-top:2px solid #999;">
+                            <td style="padding:10px;font-weight:bold;font-size:15px;">Total a Pagar</td>
+                            <td style="padding:10px;text-align:right;font-weight:bold;font-size:18px;">${totalFormatado}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <div style="margin-top:60px;display:flex;justify-content:space-between;">
