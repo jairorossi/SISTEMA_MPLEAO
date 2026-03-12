@@ -83,17 +83,16 @@
             msgErro.classList.add('hidden');
 
             // Tenta fazer o login no Firebase
-            signInWithEmailAndPassword(auth, email, senha)
+            // browserSessionPersistence: token do Firebase é apagado ao fechar o navegador
+            setPersistence(auth, browserSessionPersistence)
+                .then(() => signInWithEmailAndPassword(auth, email, senha))
                 .then((userCredential) => {
-                    // SUCESSO! Marca a sessão — será apagado ao fechar o navegador
                     sessionStorage.setItem('userLogged', 'true');
                     window.location.href = 'index.html';
                 })
                 .catch((error) => {
-                    // ERRO! Senha errada ou usuário não existe.
                     btnLogin.innerHTML = 'Entrar no Sistema';
                     btnLogin.classList.remove('opacity-75');
-                    
                     msgErro.innerText = "E-mail ou senha incorretos.";
                     msgErro.classList.remove('hidden');
                 });
