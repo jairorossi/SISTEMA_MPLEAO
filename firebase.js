@@ -193,6 +193,50 @@ window.tentarAcquireLock = tentarAcquireLock;
 window.liberarLock = liberarLock;
 
 // ==========================================
+// MOVIMENTAÇÃO DE ESTOQUE
+// ==========================================
+async function descontarEstoque(itens) {
+    // Usa transação para garantir atomicidade — ou desconta tudo ou não desconta nada
+    try {
+        await runTransaction(db, async (t) => {
+            for (const item of itens) {
+                if (!item.produto_id) continue;
+                const prodRef = doc(db, 'produtos', item.produto_id);
+                const prodSnap = await t.get(prodRef);
+                if (!prodSnap.exists()) continue;
+                const estoqueAtual = prodSnap.data().estoque_atual || 0;
+                const qtd = parseFloat(item.quantidade) || 0;
+                t.update(prodRef, { estoque_atual: Math.max(0, estoqueAtual - qtd) });
+            }
+        });
+        console.log('📦 Estoque descontado com sucesso');
+    } catch(e) {
+        console.error('Erro ao descontar estoque:', e);
+        throw e;
+    }
+}
+
+async function estornarEstoque(itens) {
+    try {
+        await runTransaction(db, async (t) => {
+            for (const item of itens) {
+                if (!item.produto_id) continue;
+                const prodRef = doc(db, 'produtos', item.produto_id);
+                const prodSnap = await t.get(prodRef);
+                if (!prodSnap.exists()) continue;
+                const estoqueAtual = prodSnap.data().estoque_atual || 0;
+                const qtd = parseFloat(item.quantidade) || 0;
+                t.update(prodRef, { estoque_atual: estoqueAtual + qtd });
+            }
+        });
+        console.log('📦 Estoque estornado com sucesso');
+    } catch(e) {
+        console.error('Erro ao estornar estoque:', e);
+        throw e;
+    }
+}
+
+// ==========================================
 // VARIÁVEIS GLOBAIS
 // ==========================================
 window.bancoClientes = [];
@@ -1214,6 +1258,13 @@ async function salvarPedidoAtual() {
     try {
         let pedidoId = id;
 
+        // Captura status anterior para detectar transições que afetam estoque
+        let statusAnterior = null;
+        if (id) {
+            const pedidoExistente = window.bancoPedidos.find(p => p.id === id);
+            statusAnterior = pedidoExistente?.status || null;
+        }
+
         if (id) {
             await updateDoc(doc(db, "pedidos", id), dados);
         } else {
@@ -1229,6 +1280,11 @@ async function salvarPedidoAtual() {
         // ==========================================
         // LÓGICA DE PARCELAS POR STATUS
         // ==========================================
+        const ESTADOS_COM_ESTOQUE_DESCONTADO = ['Produção', 'Em Entrega', 'Entregue'];
+        const entrandoEmProducao = statusAtual === 'Produção' && statusAnterior !== 'Produção';
+        const cancelandoComEstoqueDescontado = STATUS_ENCERRADOS.includes(statusAtual) &&
+            ESTADOS_COM_ESTOQUE_DESCONTADO.includes(statusAnterior);
+
         if (statusAtual === 'Produção') {
             // Remove parcelas antigas deste pedido e gera novas
             const parcelasSnap = await getDocs(collection(db, "parcelas"));
@@ -1246,10 +1302,15 @@ async function salvarPedidoAtual() {
 
             await gerarParcelas(pedidoId, nomeCliente, dados.valor_total, condicaoPagamento, primeiroVencimento);
 
+            // Desconta estoque ao entrar em Produção (apenas na primeira vez)
+            if (entrandoEmProducao && dados.itens?.length > 0) {
+                await descontarEstoque(dados.itens);
+            }
+
             await Swal.fire({
                 icon: 'success',
                 title: 'Pedido em PRODUÇÃO!',
-                text: 'Parcelas geradas no financeiro.',
+                text: 'Parcelas geradas e estoque atualizado.',
                 timer: 2000,
                 showConfirmButton: false
             });
@@ -1258,13 +1319,25 @@ async function salvarPedidoAtual() {
             // Cancela parcelas pendentes quando pedido é cancelado/reprovado
             await cancelarParcelasDoPedido(pedidoId);
 
-            await Swal.fire({
-                icon: 'info',
-                title: `Pedido "${statusAtual}"`,
-                text: 'As parcelas pendentes foram canceladas no financeiro.',
-                timer: 2500,
-                showConfirmButton: false
-            });
+            // Estorna estoque se o pedido já tinha descontado
+            if (cancelandoComEstoqueDescontado && dados.itens?.length > 0) {
+                await estornarEstoque(dados.itens);
+                await Swal.fire({
+                    icon: 'info',
+                    title: `Pedido "${statusAtual}"`,
+                    text: 'Parcelas canceladas e estoque estornado automaticamente.',
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+            } else {
+                await Swal.fire({
+                    icon: 'info',
+                    title: `Pedido "${statusAtual}"`,
+                    text: 'As parcelas pendentes foram canceladas no financeiro.',
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+            }
         }
 
         await Swal.fire({
