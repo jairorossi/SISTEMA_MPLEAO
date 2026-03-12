@@ -738,10 +738,6 @@ async function obterProximoNumeroPedido() {
 }
 
 async function carregarMemoriaBanco() {
-    if (!auth.currentUser) {
-        console.warn('⚠️ carregarMemoriaBanco ignorado: usuário não autenticado');
-        return;
-    }
     try {
         console.log('📥 Carregando clientes...');
         const cliSnap = await getDocs(collection(db, "clientes"));
