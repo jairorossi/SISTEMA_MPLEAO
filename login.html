@@ -85,7 +85,8 @@
             // Tenta fazer o login no Firebase
             signInWithEmailAndPassword(auth, email, senha)
                 .then((userCredential) => {
-                    // SUCESSO! E-mail e senha corretos. Joga pro sistema.
+                    // SUCESSO! Marca a sessão — será apagado ao fechar o navegador
+                    sessionStorage.setItem('userLogged', 'true');
                     window.location.href = 'index.html';
                 })
                 .catch((error) => {
