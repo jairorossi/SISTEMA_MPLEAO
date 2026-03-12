@@ -3,7 +3,7 @@
 // ==========================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, getDocs, doc, updateDoc, deleteDoc, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, getDocs, getDoc, doc, updateDoc, deleteDoc, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -38,21 +38,209 @@ window.writeBatch = writeBatch;
 // ==========================================
 let loginVerificado = false;
 
+// Gera um ID único por aba — sobrevive a F5 mas não a fechar e reabrir
+if (!sessionStorage.getItem('tabId')) {
+    sessionStorage.setItem('tabId', Date.now().toString());
+}
+const _tabId = sessionStorage.getItem('tabId');
+
+// sessionStorage sobrevive ao "continuar de onde parou" do Chrome
+// Por isso usamos uma combinação: sessionStorage + flag na memória da página
+// A flag _paginaCarregouNessaSessao é false ao abrir uma nova aba/janela
+// mas true ao fazer F5 (a variável JS sobrevive ao reload via bfcache)
+let _paginaCarregouNessaSessao = false;
+
+// Ao carregar a página: verifica se o tabId já estava registrado no sessionStorage
+// Se não estava (aba nova/navegador reaberto), força login
+const _tabAtiva = sessionStorage.getItem('sessaoAtiva_' + _tabId);
+if (!_tabAtiva) {
+    // Aba nova ou navegador reaberto — precisa logar
+    sessionStorage.clear();
+}
+
 onAuthStateChanged(auth, (user) => {
     if (!user) {
         window.location.replace('login.html');
-    } else {
-        localStorage.setItem('userLogged', 'true');
-        if (!loginVerificado) {
-            loginVerificado = true;
-            carregarMemoriaBanco();
-        }
+        return;
+    }
+
+    // Usuário Firebase existe — verifica se tem sessão local válida
+    if (!sessionStorage.getItem('userLogged')) {
+        // Token Firebase ainda válido mas sessão local não existe
+        // (navegador foi fechado e reaberto) — força logout
+        signOut(auth).then(() => window.location.replace('login.html'));
+        return;
+    }
+
+    if (!loginVerificado) {
+        loginVerificado = true;
+        carregarMemoriaBanco();
     }
 });
 
 window.fazerLogout = function() {
+    sessionStorage.removeItem('userLogged');
+    sessionStorage.removeItem('sessaoAtiva_' + _tabId);
+    liberarTodosLocksDoUsuario(); // fire and forget — não bloqueia o logout
     signOut(auth).then(() => window.location.replace('login.html'));
 };
+
+// ==========================================
+// SISTEMA DE LOCK PESSIMISTA
+// ==========================================
+const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutos sem atividade = lock expira
+let _lockAtivo = null; // { tipo, id, lockId }
+let _lockHeartbeatInterval = null;
+
+function nomeUsuarioAtual() {
+    const u = auth.currentUser;
+    return u ? (u.displayName || u.email || 'Usuário') : 'Usuário';
+}
+
+async function tentarAcquireLock(tipo, id) {
+    const lockId = `${tipo}_${id}`;
+    const lockRef = doc(db, 'locks', lockId);
+
+    try {
+        const snap = await getDoc(lockRef);
+        if (snap.exists()) {
+            const data = snap.data();
+            const agora = Date.now();
+            const desde = data.desde?.toMillis ? data.desde.toMillis() : agora;
+            // Verifica se o lock expirou
+            if (agora - desde < LOCK_TTL_MS) {
+                // Lock ativo de outro usuário
+                const meuEmail = auth.currentUser?.email || '';
+                if (data.usuarioEmail !== meuEmail) {
+                    const minutos = Math.floor((agora - desde) / 60000);
+                    const tempo = minutos > 0 ? `há ${minutos} min` : 'agora mesmo';
+                    return { bloqueado: true, usuario: data.usuario, tempo };
+                }
+                // É meu próprio lock — renova e continua
+            }
+        }
+
+        // Adquire ou renova o lock
+        await setDoc(lockRef, {
+            tipo,
+            id,
+            usuario: nomeUsuarioAtual(),
+            usuarioEmail: auth.currentUser?.email || '',
+            desde: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        _lockAtivo = { tipo, id, lockId };
+        _iniciarHeartbeat(lockRef);
+        return { bloqueado: false };
+
+    } catch (e) {
+        console.warn('Erro ao adquirir lock:', e);
+        return { bloqueado: false }; // falha silenciosa — não bloqueia o usuário
+    }
+}
+
+function _iniciarHeartbeat(lockRef) {
+    if (_lockHeartbeatInterval) clearInterval(_lockHeartbeatInterval);
+    _lockHeartbeatInterval = setInterval(async () => {
+        try {
+            if (_lockAtivo) {
+                await updateDoc(lockRef, { updatedAt: serverTimestamp() });
+            }
+        } catch(e) { /* silencioso */ }
+    }, 2 * 60 * 1000); // renova a cada 2 min
+}
+
+async function liberarLock() {
+    if (!_lockAtivo) return;
+    try {
+        const lockRef = doc(db, 'locks', _lockAtivo.lockId);
+        const snap = await getDoc(lockRef);
+        if (snap.exists() && snap.data().usuarioEmail === auth.currentUser?.email) {
+            await deleteDoc(lockRef);
+        }
+    } catch(e) { console.warn('Erro ao liberar lock:', e); }
+    finally {
+        _lockAtivo = null;
+        if (_lockHeartbeatInterval) { clearInterval(_lockHeartbeatInterval); _lockHeartbeatInterval = null; }
+    }
+}
+
+async function liberarTodosLocksDoUsuario() {
+    try {
+        const email = auth.currentUser?.email;
+        if (!email) return;
+        const snap = await getDocs(collection(db, 'locks'));
+        const batch = writeBatch(db);
+        snap.forEach(d => { if (d.data().usuarioEmail === email) batch.delete(d.ref); });
+        await batch.commit();
+    } catch(e) { console.warn('Erro ao liberar locks:', e); }
+}
+
+// Distingue F5 (reload) de fechar a aba
+// pagehide com persisted=false = aba sendo fechada de verdade
+// pagehide com persisted=true  = página indo pro bfcache (navegação normal)
+// beforeunload sozinho não distingue os dois casos
+window.addEventListener('pagehide', (e) => {
+    if (!e.persisted) {
+        // Aba/janela fechando de verdade — limpa sessão
+        sessionStorage.removeItem('userLogged');
+        sessionStorage.removeItem('sessaoAtiva_' + _tabId);
+    }
+    // F5 ou navegação: não limpa nada, sessão continua válida
+
+    if (_lockAtivo) {
+        try { deleteDoc(doc(db, 'locks', _lockAtivo.lockId)); } catch(e) {}
+        _lockAtivo = null;
+    }
+});
+
+window.tentarAcquireLock = tentarAcquireLock;
+window.liberarLock = liberarLock;
+
+// ==========================================
+// MOVIMENTAÇÃO DE ESTOQUE
+// ==========================================
+async function descontarEstoque(itens) {
+    // Usa transação para garantir atomicidade — ou desconta tudo ou não desconta nada
+    try {
+        await runTransaction(db, async (t) => {
+            for (const item of itens) {
+                if (!item.produto_id) continue;
+                const prodRef = doc(db, 'produtos', item.produto_id);
+                const prodSnap = await t.get(prodRef);
+                if (!prodSnap.exists()) continue;
+                const estoqueAtual = prodSnap.data().estoque_atual || 0;
+                const qtd = parseFloat(item.quantidade) || 0;
+                t.update(prodRef, { estoque_atual: Math.max(0, estoqueAtual - qtd) });
+            }
+        });
+        console.log('📦 Estoque descontado com sucesso');
+    } catch(e) {
+        console.error('Erro ao descontar estoque:', e);
+        throw e;
+    }
+}
+
+async function estornarEstoque(itens) {
+    try {
+        await runTransaction(db, async (t) => {
+            for (const item of itens) {
+                if (!item.produto_id) continue;
+                const prodRef = doc(db, 'produtos', item.produto_id);
+                const prodSnap = await t.get(prodRef);
+                if (!prodSnap.exists()) continue;
+                const estoqueAtual = prodSnap.data().estoque_atual || 0;
+                const qtd = parseFloat(item.quantidade) || 0;
+                t.update(prodRef, { estoque_atual: estoqueAtual + qtd });
+            }
+        });
+        console.log('📦 Estoque estornado com sucesso');
+    } catch(e) {
+        console.error('Erro ao estornar estoque:', e);
+        throw e;
+    }
+}
 
 // ==========================================
 // VARIÁVEIS GLOBAIS
@@ -658,15 +846,12 @@ function bloquearCampos(bloquear) {
         }
     }
 
+    // Botão Salvar NUNCA é desabilitado pelo bloquearCampos
+    // (o usuário precisa conseguir salvar mesmo com campos bloqueados)
     const btnSalvar = document.getElementById('btn-salvar');
-    if (btnSalvar) {
-        if (bloquear) {
-            btnSalvar.setAttribute('disabled', 'disabled');
-            btnSalvar.classList.add('opacity-50', 'cursor-not-allowed');
-        } else {
-            btnSalvar.removeAttribute('disabled');
-            btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
+    if (btnSalvar && !bloquear) {
+        btnSalvar.removeAttribute('disabled');
+        btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 }
 
@@ -895,7 +1080,9 @@ window.novoPedido = function() {
 
     const selectCliente = document.getElementById('input-cliente');
     if (selectCliente) {
+        selectCliente.disabled = false;
         if ($.fn.select2) {
+            $(selectCliente).next('.select2-container').css('pointer-events','').css('opacity','');
             $(selectCliente).val('').trigger('change');
         } else {
             selectCliente.value = '';
@@ -985,10 +1172,11 @@ async function salvarPedidoAtual() {
     }
 
     const btn = document.getElementById('btn-salvar');
-    if (!btn) return;
+    if (!btn || btn.disabled) return; // evita duplo clique
 
-    const textoOriginal = btn.innerHTML;
+    // Determina o texto correto baseado no modo, nunca captura estado travado
     const id = document.getElementById('pedido-id-atual')?.value;
+    const textoOriginal = id ? '✏️ Atualizar Pedido' : '📦 Salvar Pedido';
 
     const selectCliente = document.getElementById('input-cliente');
     const nomeCliente = selectCliente ? selectCliente.value : '';
@@ -1073,6 +1261,13 @@ async function salvarPedidoAtual() {
     try {
         let pedidoId = id;
 
+        // Captura status anterior para detectar transições que afetam estoque
+        let statusAnterior = null;
+        if (id) {
+            const pedidoExistente = window.bancoPedidos.find(p => p.id === id);
+            statusAnterior = pedidoExistente?.status || null;
+        }
+
         if (id) {
             await updateDoc(doc(db, "pedidos", id), dados);
         } else {
@@ -1088,6 +1283,11 @@ async function salvarPedidoAtual() {
         // ==========================================
         // LÓGICA DE PARCELAS POR STATUS
         // ==========================================
+        const ESTADOS_COM_ESTOQUE_DESCONTADO = ['Produção', 'Em Entrega', 'Entregue'];
+        const entrandoEmProducao = statusAtual === 'Produção' && statusAnterior !== 'Produção';
+        const cancelandoComEstoqueDescontado = STATUS_ENCERRADOS.includes(statusAtual) &&
+            ESTADOS_COM_ESTOQUE_DESCONTADO.includes(statusAnterior);
+
         if (statusAtual === 'Produção') {
             // Remove parcelas antigas deste pedido e gera novas
             const parcelasSnap = await getDocs(collection(db, "parcelas"));
@@ -1105,10 +1305,15 @@ async function salvarPedidoAtual() {
 
             await gerarParcelas(pedidoId, nomeCliente, dados.valor_total, condicaoPagamento, primeiroVencimento);
 
+            // Desconta estoque ao entrar em Produção (apenas na primeira vez)
+            if (entrandoEmProducao && dados.itens?.length > 0) {
+                await descontarEstoque(dados.itens);
+            }
+
             await Swal.fire({
                 icon: 'success',
                 title: 'Pedido em PRODUÇÃO!',
-                text: 'Parcelas geradas no financeiro.',
+                text: 'Parcelas geradas e estoque atualizado.',
                 timer: 2000,
                 showConfirmButton: false
             });
@@ -1117,13 +1322,25 @@ async function salvarPedidoAtual() {
             // Cancela parcelas pendentes quando pedido é cancelado/reprovado
             await cancelarParcelasDoPedido(pedidoId);
 
-            await Swal.fire({
-                icon: 'info',
-                title: `Pedido "${statusAtual}"`,
-                text: 'As parcelas pendentes foram canceladas no financeiro.',
-                timer: 2500,
-                showConfirmButton: false
-            });
+            // Estorna estoque se o pedido já tinha descontado
+            if (cancelandoComEstoqueDescontado && dados.itens?.length > 0) {
+                await estornarEstoque(dados.itens);
+                await Swal.fire({
+                    icon: 'info',
+                    title: `Pedido "${statusAtual}"`,
+                    text: 'Parcelas canceladas e estoque estornado automaticamente.',
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+            } else {
+                await Swal.fire({
+                    icon: 'info',
+                    title: `Pedido "${statusAtual}"`,
+                    text: 'As parcelas pendentes foram canceladas no financeiro.',
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+            }
         }
 
         await Swal.fire({
@@ -1169,9 +1386,9 @@ function atualizarTextoBotaoSalvar(modo) {
 document.addEventListener('DOMContentLoaded', function() {
     const btnSalvar = document.getElementById('btn-salvar');
     if (btnSalvar) {
-        const newBtn = btnSalvar.cloneNode(true);
-        btnSalvar.parentNode.replaceChild(newBtn, btnSalvar);
-        newBtn.addEventListener('click', salvarPedidoAtual);
+        // Remove qualquer onclick inline e adiciona listener limpo
+        btnSalvar.removeAttribute('onclick');
+        btnSalvar.addEventListener('click', salvarPedidoAtual);
         console.log('✅ Botão salvar configurado');
     }
 });
@@ -1228,6 +1445,7 @@ document.getElementById('btn-salvar-cliente').addEventListener('click', async ()
         Swal.fire({ icon: 'error', title: 'Erro', text: 'Erro ao salvar cliente!', confirmButtonColor: '#3b82f6' });
     }
 
+    window.liberarLock(); // libera o lock após salvar
     ['cli-id', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -1254,6 +1472,15 @@ window.abrirPedidoParaEdicao = function(id) {
     document.getElementById('aviso-bloqueio').classList.add('hidden');
     document.getElementById('pedido-id-atual').value = pedido.id;
 
+    // Garante que o botão salvar nunca abre travado em "Salvando..."
+    const btnSalvar = document.getElementById('btn-salvar');
+    if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = '✏️ Atualizar Pedido';
+        btnSalvar.classList.remove('bg-green-600', 'hover:bg-green-700', 'opacity-50', 'cursor-not-allowed');
+        btnSalvar.classList.add('bg-blue-600', 'hover:bg-blue-700');
+    }
+
     const selectCliente = document.getElementById('input-cliente');
     if (selectCliente && pedido.cliente_nome) {
         if ($.fn.select2) {
@@ -1261,6 +1488,9 @@ window.abrirPedidoParaEdicao = function(id) {
         } else {
             selectCliente.value = pedido.cliente_nome;
         }
+        // Bloqueia troca de cliente em pedido existente
+        selectCliente.disabled = true;
+        if ($.fn.select2) $(selectCliente).next('.select2-container').css('pointer-events','none').css('opacity','0.6');
     }
 
     document.getElementById('pdf-n-display').innerText = '#' + (pedido.numero_sequencial?.toString().padStart(3, '0') || '???');
@@ -1300,13 +1530,13 @@ window.abrirPedidoParaEdicao = function(id) {
         document.getElementById('input-km').value = pedido.frete.distancia || '0';
         document.getElementById('input-litro').value = pedido.frete.preco_combustivel || '4.20';
         document.getElementById('input-consumo').value = pedido.frete.consumo || '9.0';
-        document.getElementById('input-pedagio').value = (pedido.frete.pedagio || 0).toFixed(2).replace('.', ',');
+        document.getElementById('input-pedagio').value = (pedido.frete.pedagio || 0).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
         if (pedido.frete.custo_combustivel) document.getElementById('custo-combustivel').innerText = pedido.frete.custo_combustivel;
         if (pedido.frete.custo_total) document.getElementById('custo-total-frete').innerText = pedido.frete.custo_total;
     }
 
     if (pedido.desconto) document.getElementById('input-desconto').value = pedido.desconto;
-    if (pedido.acrescimo) document.getElementById('input-acrescimo').value = pedido.acrescimo.toFixed(2).replace('.', ',');
+    if (pedido.acrescimo) document.getElementById('input-acrescimo').value = pedido.acrescimo.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
     if (pedido.motivo_acrescimo) document.getElementById('input-motivo-acrescimo').value = pedido.motivo_acrescimo;
 
     if (pedido.condicao_pagamento) {
@@ -1394,7 +1624,20 @@ window.abrirPedidoParaEdicao = function(id) {
 // ==========================================
 // FUNÇÕES DE EDIÇÃO E EXCLUSÃO
 // ==========================================
-window.editarCliente = function(id, nome, telefone, documento, endereco, cep, email, nascimento, limite, observacoes) {
+window.editarCliente = async function(id, nome, telefone, documento, endereco, cep, email, nascimento, limite, observacoes) {
+    // Verifica se outro usuário está editando este cliente
+    const lock = await window.tentarAcquireLock('cliente', id);
+    if (lock.bloqueado) {
+        Swal.fire({
+            icon: 'warning',
+            title: '🔒 Registro em uso',
+            html: `O cliente <strong>${nome}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'Entendido'
+        });
+        return;
+    }
+
     document.getElementById('cli-id').value = id;
     document.getElementById('cli-nome').value = nome;
     document.getElementById('cli-telefone').value = telefone || '';
@@ -1403,13 +1646,28 @@ window.editarCliente = function(id, nome, telefone, documento, endereco, cep, em
     document.getElementById('cli-endereco').value = endereco || '';
     document.getElementById('cli-email').value = email || '';
     document.getElementById('cli-nascimento').value = nascimento || '';
-    document.getElementById('cli-limite').value = limite ? parseFloat(limite).toFixed(2).replace('.', ',') : '0,00';
+    document.getElementById('cli-limite').value = limite ? parseFloat(limite).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
     document.getElementById('cli-obs').value = observacoes || '';
     document.getElementById('btn-cancelar-cliente').classList.remove('hidden');
     window.mostrarAba('aba-clientes');
 };
 
-window.editarProduto = function(id) {
+window.editarProduto = async function(id) {
+    const produto = window.bancoProdutos.find(p => p.id === id);
+    const nomeProd = produto?.descricao || 'este produto';
+
+    const lock = await window.tentarAcquireLock('produto', id);
+    if (lock.bloqueado) {
+        Swal.fire({
+            icon: 'warning',
+            title: '🔒 Registro em uso',
+            html: `O produto <strong>${nomeProd}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'Entendido'
+        });
+        return;
+    }
+
     if (typeof window.abrirCadastroCompletoProduto === 'function') {
         window.abrirCadastroCompletoProduto(id);
     }
@@ -1508,6 +1766,7 @@ window.filtrarProdutos = function(termo) {
 };
 
 window.cancelarEdicaoCliente = function() {
+    window.liberarLock(); // libera o lock do cliente
     ['cli-id', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';

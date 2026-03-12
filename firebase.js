@@ -1278,6 +1278,8 @@ async function salvarPedidoAtual() {
             document.getElementById('pedido-id-atual').value = docRef.id;
             document.getElementById('btn-cancelar-pedido').classList.remove('hidden');
             atualizarTextoBotaoSalvar('editando');
+            // Atualiza o display do número imediatamente após criar
+            document.getElementById('pdf-n-display').innerText = '#' + dados.numero_sequencial.toString().padStart(3, '0');
         }
 
         // ==========================================

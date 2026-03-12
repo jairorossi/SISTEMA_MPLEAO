@@ -680,8 +680,12 @@ async function gerarPDF() {
     btn.innerHTML = '✨ Gerando PDF...';
     btn.disabled = true;
 
-    const numeroExibicao = document.getElementById('pdf-n-display')?.innerText || '';
-    const numeroFinal = (numeroExibicao && numeroExibicao !== 'NOVO') ? numeroExibicao : '???';
+    const numeroExibicao = (document.getElementById('pdf-n-display')?.innerText || '').trim();
+    // Remove o # para o nome do arquivo, mantém para exibição
+    const numeroFinal = (numeroExibicao && numeroExibicao !== 'NOVO' && numeroExibicao !== '')
+        ? numeroExibicao.replace('#', '')
+        : '???';
+    const numeroDisplay = numeroFinal !== '???' ? '#' + numeroFinal : '???';
     const endereco = document.getElementById('input-endereco')?.value || clienteObj.endereco || '';
     const previsao = document.getElementById('input-previsao')?.value || 'A combinar';
     const dataAtual = new Date().toLocaleDateString('pt-BR');
@@ -753,7 +757,7 @@ async function gerarPDF() {
                     <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Serralheria & Vidraçaria</p>
                 </div>
                 <div style="text-align:right;">
-                    <h2 style="margin:0;font-size:18px;">PEDIDO Nº ${numeroFinal}</h2>
+                    <h2 style="margin:0;font-size:18px;">PEDIDO Nº ${numeroDisplay}</h2>
                     <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Data: ${dataAtual}</p>
                 </div>
             </div>

@@ -363,11 +363,11 @@ function abrirCadastroCompletoProduto(produtoId = null) {
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="text-xs font-medium">Preço de Custo (R$)</label>
-                        <input id="swal-prod-custo" class="w-full p-2 border rounded text-sm text-right" value="${produto?.custo ? produto.custo.toFixed(2).replace('.', ',') : '0,00'}" onkeyup="formatarValorInput(this)">
+                        <input id="swal-prod-custo" class="w-full p-2 border rounded text-sm text-right" value="${produto?.custo ? produto.custo.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00'}" onkeyup="formatarValorInput(this)">
                     </div>
                     <div>
                         <label class="text-xs font-medium">Preço de Venda (R$) *</label>
-                        <input id="swal-prod-valor" class="w-full p-2 border rounded text-sm text-right font-bold text-blue-600" value="${produto ? produto.valor_base.toFixed(2).replace('.', ',') : '0,00'}" onkeyup="formatarValorInput(this)">
+                        <input id="swal-prod-valor" class="w-full p-2 border rounded text-sm text-right font-bold text-blue-600" value="${produto ? produto.valor_base.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00'}" onkeyup="formatarValorInput(this)">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -423,6 +423,8 @@ function abrirCadastroCompletoProduto(produtoId = null) {
             };
         }
     }).then(async (result) => {
+        // Libera o lock independente de salvar ou cancelar
+        if (typeof window.liberarLock === 'function') window.liberarLock();
         if (!result.isConfirmed) return;
         try {
             if (!window.db) { Swal.fire({ icon: 'error', title: 'Erro', text: 'Firebase não disponível.', confirmButtonColor: '#3b82f6' }); return; }
@@ -501,7 +503,7 @@ function formatarValorReais(valor) {
     if (valor === undefined || valor === null) return 'R$ 0,00';
     const num = typeof valor === 'string' ? parseFloat(valor) : valor;
     if (isNaN(num)) return 'R$ 0,00';
-    return 'R$ ' + num.toFixed(2).replace('.', ',');
+    return 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function formatarTelefone(input) {
@@ -650,8 +652,20 @@ async function gerarPDF() {
         btn.innerHTML = '💾 Salvando...';
         try {
             await window.salvarPedidoAtual();
-            // Aguarda um momento para o ID ser preenchido
-            await new Promise(r => setTimeout(r, 500));
+            // Aguarda o pdf-n-display ser preenchido com o número real (máx 3s)
+            await new Promise((resolve) => {
+                const inicio = Date.now();
+                const checar = setInterval(() => {
+                    const num = document.getElementById('pdf-n-display')?.innerText || '';
+                    if (num && num !== 'NOVO' && num !== '') {
+                        clearInterval(checar);
+                        resolve();
+                    } else if (Date.now() - inicio > 3000) {
+                        clearInterval(checar);
+                        resolve(); // timeout — segue mesmo assim
+                    }
+                }, 100);
+            });
         } catch(e) {
             btn.disabled = false;
             btn.innerHTML = '🖨️ Imprimir Pedido';
@@ -666,7 +680,8 @@ async function gerarPDF() {
     btn.innerHTML = '✨ Gerando PDF...';
     btn.disabled = true;
 
-    const numeroExibicao = document.getElementById('pdf-n-display')?.innerText || 'NOVO';
+    const numeroExibicao = document.getElementById('pdf-n-display')?.innerText || '';
+    const numeroFinal = (numeroExibicao && numeroExibicao !== 'NOVO') ? numeroExibicao : '???';
     const endereco = document.getElementById('input-endereco')?.value || clienteObj.endereco || '';
     const previsao = document.getElementById('input-previsao')?.value || 'A combinar';
     const dataAtual = new Date().toLocaleDateString('pt-BR');
@@ -691,11 +706,13 @@ async function gerarPDF() {
             const opt = select.options[select.selectedIndex];
             desc = opt?.dataset?.desc || opt?.text?.split(' - ')[0] || '';
         }
-        const valorUnit = linha.querySelector('.valor-item')?.value || '';
+        // Valor unitário: lê do campo e formata com milhar
+        const valorRaw = parseFloat((linha.querySelector('.valor-item')?.value || '0').replace(/[^\d,]/g,'').replace(',','.')) || 0;
+        const valorUnit = formatarValorReais(valorRaw);
         const total = linha.querySelector('.total-linha')?.innerText || 'R$ 0,00';
         if (desc) {
             linhasHtml += `
-                <tr style="border-bottom:1px solid #ddd;">
+                <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:8px;text-align:center;border:1px solid #ddd;">${qtd}</td>
                     <td style="padding:8px;border:1px solid #ddd;">${desc}</td>
                     <td style="padding:8px;text-align:right;border:1px solid #ddd;">${valorUnit}</td>
@@ -703,6 +720,30 @@ async function gerarPDF() {
                 </tr>`;
         }
     });
+
+    // Lê breakdown de totais direto dos elementos já formatados na tela
+    const elSubtotal  = document.getElementById('display-subtotal')?.innerText  || '';
+    const elDesconto  = document.getElementById('display-desconto')?.innerText  || '';
+    const elAcrescimo = document.getElementById('display-acrescimo')?.innerText || '';
+    const elFrete     = document.getElementById('display-frete-final')?.innerText || '';
+    const elTaxa      = document.getElementById('display-taxa-final');
+    const taxaVisivel = elTaxa && !elTaxa.classList.contains('hidden');
+    const elTaxaText  = taxaVisivel ? elTaxa.innerText : '';
+
+    // Formata o total com milhar corretamente
+    const totalNum = parseFloat((btn.getAttribute('data-total') || '0').replace(/\./g,'').replace(',','.'));
+    const totalFormatado = formatarValorReais(totalNum);
+
+    // Monta linhas do breakdown — só mostra desconto/acréscimo/frete se diferente de zero
+    const descontoNum  = parseFloat((elDesconto.match(/[\d,.]+/) || ['0'])[0].replace(/\./g,'').replace(',','.')) || 0;
+    const acrescimoNum = parseFloat((elAcrescimo.match(/[\d,.]+/) || ['0'])[0].replace(/\./g,'').replace(',','.')) || 0;
+    const freteNum     = parseFloat((elFrete.match(/[\d,.]+/) || ['0'])[0].replace(/\./g,'').replace(',','.')) || 0;
+
+    let breakdownHtml = `<tr><td style="padding:5px 10px;color:#555;">Subtotal</td><td style="padding:5px 10px;text-align:right;">${elSubtotal.replace('Subtotal: ','')}</td></tr>`;
+    if (descontoNum  > 0) breakdownHtml += `<tr><td style="padding:5px 10px;color:#16a34a;">Desconto</td><td style="padding:5px 10px;text-align:right;color:#16a34a;">- ${formatarValorReais(descontoNum)}</td></tr>`;
+    if (acrescimoNum > 0) breakdownHtml += `<tr><td style="padding:5px 10px;color:#d97706;">Acréscimo</td><td style="padding:5px 10px;text-align:right;color:#d97706;">+ ${formatarValorReais(acrescimoNum)}</td></tr>`;
+    if (freteNum     > 0) breakdownHtml += `<tr><td style="padding:5px 10px;color:#555;">Frete</td><td style="padding:5px 10px;text-align:right;">${formatarValorReais(freteNum)}</td></tr>`;
+    if (taxaVisivel && elTaxaText) breakdownHtml += `<tr><td style="padding:5px 10px;color:#7c3aed;">Taxa Cartão</td><td style="padding:5px 10px;text-align:right;color:#7c3aed;">${elTaxaText.replace(/.*: /,'')}</td></tr>`;
 
     const conteudo = `
         <div style="padding:30px;font-family:Arial,sans-serif;color:#333;max-width:800px;margin:0 auto;">
@@ -712,7 +753,7 @@ async function gerarPDF() {
                     <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Serralheria & Vidraçaria</p>
                 </div>
                 <div style="text-align:right;">
-                    <h2 style="margin:0;font-size:18px;">PEDIDO Nº ${numeroExibicao}</h2>
+                    <h2 style="margin:0;font-size:18px;">PEDIDO Nº ${numeroFinal}</h2>
                     <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Data: ${dataAtual}</p>
                 </div>
             </div>
@@ -721,7 +762,7 @@ async function gerarPDF() {
                 ${dadosClienteHtml}
             </div>
 
-            <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;border:1px solid #ddd;">
+            <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:13px;border:1px solid #ddd;">
                 <thead>
                     <tr style="background:#e0e0e0;">
                         <th style="padding:10px;border:1px solid #ddd;width:50px;text-align:center;">Qtd</th>
@@ -733,11 +774,16 @@ async function gerarPDF() {
                 <tbody>${linhasHtml}</tbody>
             </table>
 
-            <div style="text-align:right;margin-bottom:48px;">
-                <div style="display:inline-block;background:#f0f0f0;padding:15px 25px;border-radius:6px;border:1px solid #999;">
-                    <span style="font-size:11px;text-transform:uppercase;display:block;color:#666;margin-bottom:4px;">Total a Pagar</span>
-                    <strong style="font-size:24px;">R$ ${totalGeral}</strong>
-                </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:40px;">
+                <table style="font-size:13px;min-width:280px;">
+                    <tbody>
+                        ${breakdownHtml}
+                        <tr style="border-top:2px solid #999;">
+                            <td style="padding:10px;font-weight:bold;font-size:15px;">Total a Pagar</td>
+                            <td style="padding:10px;text-align:right;font-weight:bold;font-size:18px;">${totalFormatado}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <div style="margin-top:60px;display:flex;justify-content:space-between;">
@@ -749,7 +795,7 @@ async function gerarPDF() {
 
     const opcoes = {
         margin: 10,
-        filename: `Pedido_${numeroExibicao}_${nomeCliente.replace(/\s+/g,'_')}.pdf`,
+        filename: `Pedido_${numeroFinal}_${nomeCliente.replace(/\s+/g,'_')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
