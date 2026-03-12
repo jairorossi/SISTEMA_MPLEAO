@@ -1491,7 +1491,7 @@ document.getElementById('btn-salvar-cliente').addEventListener('click', async ()
     }
 
     window.liberarLock(); // libera o lock após salvar
-    ['cli-id', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
+    ['cli-id', 'cli-codigo', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -1685,7 +1685,9 @@ window.editarCliente = async function(id, nome, telefone, documento, endereco, c
         return;
     }
 
+    const clienteObj = window.bancoClientes.find(cl => cl.id === id);
     document.getElementById('cli-id').value = id;
+    document.getElementById('cli-codigo').value = clienteObj?.codigo || '';
     document.getElementById('cli-nome').value = nome;
     document.getElementById('cli-telefone').value = telefone || '';
     document.getElementById('cli-documento').value = documento || '';
@@ -1814,7 +1816,7 @@ window.filtrarProdutos = function(termo) {
 
 window.cancelarEdicaoCliente = function() {
     window.liberarLock(); // libera o lock do cliente
-    ['cli-id', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
+    ['cli-id', 'cli-codigo', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
