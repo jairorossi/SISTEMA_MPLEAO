@@ -3,387 +3,99 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Importar Tabela — MPLEÃO</title>
+<title>Importar Produtos — MPLEÃO</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap');
-
   :root {
-    --bg: #0f1117;
-    --surface: #181c27;
-    --border: #2a2f3e;
-    --accent: #3b7ff5;
-    --accent2: #22d3a5;
-    --warn: #f59e0b;
-    --danger: #ef4444;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --mono: 'IBM Plex Mono', monospace;
-    --sans: 'IBM Plex Sans', sans-serif;
+    --bg:#0f1117;--surface:#181c27;--border:#2a2f3e;--accent:#3b7ff5;
+    --accent2:#22d3a5;--warn:#f59e0b;--danger:#ef4444;--text:#e2e8f0;--muted:#64748b;
+    --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
   }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    padding: 0;
-  }
-
-  /* HEADER */
-  header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 18px 32px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  header .logo {
-    font-family: var(--mono);
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--accent);
-    letter-spacing: -0.5px;
-  }
-  header .sep { color: var(--border); font-size: 24px; }
-  header .title { font-size: 14px; color: var(--muted); font-weight: 400; letter-spacing: 0.5px; text-transform: uppercase; }
-
-  /* MAIN */
-  main { max-width: 1200px; margin: 0 auto; padding: 32px; }
-
-  /* STEPS */
-  .steps {
-    display: flex;
-    gap: 0;
-    margin-bottom: 36px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .step {
-    flex: 1;
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    opacity: 0.4;
-    transition: opacity 0.3s;
-  }
-  .step:last-child { border-right: none; }
-  .step.active { opacity: 1; background: #1e2535; }
-  .step.done { opacity: 0.7; }
-  .step-num {
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    background: var(--border);
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 600;
-    flex-shrink: 0;
-  }
-  .step.active .step-num { background: var(--accent); color: #fff; }
-  .step.done .step-num { background: var(--accent2); color: #0f1117; }
-  .step-label { font-size: 13px; font-weight: 600; }
-  .step-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-
-  /* PANEL */
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px;
-    margin-bottom: 24px;
-  }
-  .panel-title {
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--accent);
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* TEXTAREA */
-  textarea {
-    width: 100%;
-    height: 280px;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 11px;
-    padding: 14px;
-    resize: vertical;
-    outline: none;
-    transition: border-color 0.2s;
-    line-height: 1.6;
-  }
-  textarea:focus { border-color: var(--accent); }
-  textarea::placeholder { color: var(--muted); }
-
-  .hint {
-    margin-top: 10px;
-    font-size: 12px;
-    color: var(--muted);
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    line-height: 1.5;
-  }
-
-  /* BUTTONS */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 11px 22px;
-    border-radius: 8px;
-    border: none;
-    font-family: var(--sans);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #5590f7; transform: translateY(-1px); }
-  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
-  .btn-success { background: var(--accent2); color: #0f1117; }
-  .btn-success:hover { background: #34e8b8; transform: translateY(-1px); }
-  .btn-success:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; transform: none; }
-  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
-  .btn-danger { background: var(--danger); color: #fff; }
-
-  .btn-row { display: flex; gap: 12px; align-items: center; margin-top: 20px; flex-wrap: wrap; }
-
-  /* STATS BAR */
-  .stats-bar {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-  }
-  .stat {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .stat-val {
-    font-family: var(--mono);
-    font-size: 22px;
-    font-weight: 600;
-    color: var(--accent2);
-  }
-  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-
-  /* FILTER BAR */
-  .filter-bar {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .filter-bar input {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 13px;
-    padding: 8px 14px;
-    outline: none;
-    flex: 1;
-    min-width: 200px;
-    transition: border-color 0.2s;
-  }
-  .filter-bar input:focus { border-color: var(--accent); }
-  .filter-bar select {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 13px;
-    padding: 8px 14px;
-    outline: none;
-    cursor: pointer;
-  }
-
-  /* TABLE */
-  .table-wrap {
-    overflow-x: auto;
-    max-height: 460px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-  thead th {
-    position: sticky;
-    top: 0;
-    background: #1e2535;
-    border-bottom: 1px solid var(--border);
-    padding: 10px 14px;
-    text-align: left;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    z-index: 1;
-  }
-  tbody tr {
-    border-bottom: 1px solid var(--border);
-    transition: background 0.1s;
-  }
-  tbody tr:hover { background: #1a1f2e; }
-  tbody tr.row-branco { border-left: 3px solid #94a3b8; }
-  tbody tr.row-preto { border-left: 3px solid #475569; }
-  td {
-    padding: 9px 14px;
-    vertical-align: middle;
-  }
-  td .code {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--accent);
-    background: rgba(59,127,245,0.08);
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-  td .price {
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--accent2);
-  }
-  td .cat-tag {
-    font-size: 10px;
-    background: rgba(34,211,165,0.1);
-    color: var(--accent2);
-    border: 1px solid rgba(34,211,165,0.2);
-    padding: 2px 7px;
-    border-radius: 20px;
-    white-space: nowrap;
-  }
-  td .cor-tag {
-    font-size: 10px;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-weight: 600;
-  }
-  td .cor-branco {
-    background: rgba(148,163,184,0.15);
-    color: #cbd5e1;
-    border: 1px solid rgba(148,163,184,0.3);
-  }
-  td .cor-preto {
-    background: rgba(71,85,105,0.4);
-    color: #94a3b8;
-    border: 1px solid rgba(71,85,105,0.5);
-  }
-  .chk-cell { width: 36px; text-align: center; }
-  input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
-
-  /* PROGRESS */
-  .progress-wrap { display: none; margin-top: 20px; }
-  .progress-wrap.visible { display: block; }
-  .progress-bar-outer {
-    background: var(--border);
-    border-radius: 100px;
-    height: 6px;
-    overflow: hidden;
-    margin-top: 8px;
-  }
-  .progress-bar-inner {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 100px;
-    transition: width 0.3s;
-    width: 0%;
-  }
-  .progress-text {
-    font-size: 12px;
-    color: var(--muted);
-    font-family: var(--mono);
-    margin-top: 6px;
-  }
-
-  /* LOG */
-  .log-wrap {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px;
-    max-height: 200px;
-    overflow-y: auto;
-    margin-top: 16px;
-    font-family: var(--mono);
-    font-size: 11px;
-    line-height: 1.8;
-    display: none;
-  }
-  .log-wrap.visible { display: block; }
-  .log-ok { color: var(--accent2); }
-  .log-err { color: var(--danger); }
-  .log-info { color: var(--muted); }
-
-  /* BADGE */
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-weight: 600;
-  }
-  .badge-warn { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid rgba(245,158,11,0.3); }
-  .badge-ok { background: rgba(34,211,165,0.12); color: var(--accent2); border: 1px solid rgba(34,211,165,0.25); }
-
-  /* SECTION */
-  #section-paste { display: block; }
-  #section-preview { display: none; }
-  #section-done { display: none; }
-
-  /* DONE */
-  .done-icon { font-size: 56px; margin-bottom: 16px; }
-  .done-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-  .done-sub { color: var(--muted); font-size: 14px; }
-  .done-center { text-align: center; padding: 48px 0; }
-
-  /* SCROLLBAR */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-  /* RESPONSIVE */
-  @media (max-width: 640px) {
-    main { padding: 16px; }
-    .steps { flex-direction: column; }
-    .step { border-right: none; border-bottom: 1px solid var(--border); }
-  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:18px 32px;display:flex;align-items:center;gap:16px;}
+  .logo{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--accent);}
+  .sep{color:var(--border);font-size:24px;}
+  .htitle{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  main{max-width:1200px;margin:0 auto;padding:32px;}
+  .steps{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:32px;}
+  .step{flex:1;padding:16px 20px;display:flex;align-items:center;gap:12px;background:var(--surface);border-right:1px solid var(--border);opacity:.4;transition:all .3s;}
+  .step:last-child{border-right:none;}
+  .step.active{opacity:1;background:#1e2535;}
+  .step.done{opacity:.75;}
+  .step-num{width:28px;height:28px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:600;flex-shrink:0;}
+  .step.active .step-num{background:var(--accent);color:#fff;}
+  .step.done .step-num{background:var(--accent2);color:#0f1117;}
+  .step-label{font-size:13px;font-weight:600;}
+  .step-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;margin-bottom:24px;}
+  .ptitle{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:20px;}
+  .upload-zone{border:2px dashed var(--border);border-radius:12px;padding:56px 32px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+  .upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(59,127,245,.05);}
+  .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+  .upload-icon{font-size:48px;margin-bottom:16px;}
+  .upload-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+  .upload-sub{font-size:13px;color:var(--muted);}
+  .upload-sub strong{color:var(--accent);}
+  .upload-selected{display:none;background:rgba(34,211,165,.08);border:1px solid rgba(34,211,165,.25);border-radius:8px;padding:14px 18px;margin-top:16px;align-items:center;gap:12px;}
+  .upload-selected.visible{display:flex;}
+  .fname{font-family:var(--mono);font-size:13px;color:var(--accent2);font-weight:600;}
+  .fsize{font-size:11px;color:var(--muted);}
+  .download-btn{display:inline-flex;align-items:center;gap:8px;background:rgba(34,211,165,.1);border:1px solid rgba(34,211,165,.3);color:var(--accent2);border-radius:8px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:var(--sans);}
+  .download-btn:hover{background:rgba(34,211,165,.2);transform:translateY(-1px);}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:8px;border:none;font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{background:#5590f7;transform:translateY(-1px);}
+  .btn-primary:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;transform:none;}
+  .btn-success{background:var(--accent2);color:#0f1117;}
+  .btn-success:hover{background:#34e8b8;transform:translateY(-1px);}
+  .btn-success:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;transform:none;}
+  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+  .btn-ghost:hover{color:var(--text);border-color:var(--muted);}
+  .btn-row{display:flex;gap:12px;align-items:center;margin-top:20px;flex-wrap:wrap;}
+  .stats-bar{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
+  .stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 18px;}
+  .stat-val{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--accent2);}
+  .stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+  .filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+  .filter-bar input,.filter-bar select{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--sans);font-size:13px;padding:8px 14px;outline:none;}
+  .filter-bar input{flex:1;min-width:200px;}
+  .filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent);}
+  .table-wrap{overflow:auto;max-height:460px;border:1px solid var(--border);border-radius:8px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{position:sticky;top:0;background:#1e2535;border-bottom:1px solid var(--border);padding:10px 12px;text-align:left;font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;z-index:1;}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+  tbody tr:hover{background:#1a1f2e;}
+  td{padding:8px 12px;vertical-align:middle;}
+  .code{font-family:var(--mono);font-size:11px;color:var(--accent);background:rgba(59,127,245,.08);padding:2px 6px;border-radius:4px;}
+  .price{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent2);}
+  .cat-tag{font-size:10px;background:rgba(34,211,165,.1);color:var(--accent2);border:1px solid rgba(34,211,165,.2);padding:2px 7px;border-radius:20px;white-space:nowrap;}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap;}
+  .badge-new{background:rgba(34,211,165,.12);color:var(--accent2);border:1px solid rgba(34,211,165,.25);}
+  .badge-upd{background:rgba(245,158,11,.12);color:var(--warn);border:1px solid rgba(245,158,11,.25);}
+  .badge-eq{color:var(--muted);font-size:10px;}
+  .erros-wrap{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:14px 18px;margin-bottom:16px;font-size:12px;}
+  .erros-wrap ul{margin-top:8px;margin-left:20px;color:var(--danger);line-height:1.8;}
+  .progress-wrap{display:none;margin-top:20px;}
+  .progress-wrap.visible{display:block;}
+  .progress-bar-outer{background:var(--border);border-radius:100px;height:6px;overflow:hidden;margin-top:8px;}
+  .progress-bar-inner{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:100px;transition:width .3s;width:0%;}
+  .progress-text{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:6px;}
+  .log-wrap{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;max-height:200px;overflow-y:auto;margin-top:14px;font-family:var(--mono);font-size:11px;line-height:1.8;display:none;}
+  .log-wrap.visible{display:block;}
+  .log-ok{color:var(--accent2);}
+  .log-upd{color:var(--warn);}
+  .log-err{color:var(--danger);}
+  .done-center{text-align:center;padding:48px 0;}
+  .done-icon{font-size:56px;margin-bottom:16px;}
+  .done-title{font-size:24px;font-weight:700;margin-bottom:8px;}
+  .done-sub{color:var(--muted);font-size:14px;}
+  #section-upload{display:block;}
+  #section-preview,#section-done{display:none;}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 </style>
 </head>
 <body>
@@ -391,571 +103,379 @@
 <header>
   <span class="logo">MPLEÃO</span>
   <span class="sep">/</span>
-  <span class="title">Importador de Tabela de Produtos</span>
+  <span class="htitle">Importador de Produtos</span>
 </header>
 
 <main>
-
-  <!-- STEPS -->
   <div class="steps">
-    <div class="step active" id="step1">
-      <div class="step-num">1</div>
-      <div>
-        <div class="step-label">Colar dados</div>
-        <div class="step-sub">Cole o conteúdo copiado da planilha</div>
-      </div>
-    </div>
-    <div class="step" id="step2">
-      <div class="step-num">2</div>
-      <div>
-        <div class="step-label">Revisar</div>
-        <div class="step-sub">Confira os produtos detectados</div>
-      </div>
-    </div>
-    <div class="step" id="step3">
-      <div class="step-num">3</div>
-      <div>
-        <div class="step-label">Importar</div>
-        <div class="step-sub">Enviar para o Firebase</div>
-      </div>
-    </div>
+    <div class="step active" id="step1"><div class="step-num">1</div><div><div class="step-label">Baixar modelo</div><div class="step-sub">Preencha a planilha padrão</div></div></div>
+    <div class="step" id="step2"><div class="step-num">2</div><div><div class="step-label">Enviar arquivo</div><div class="step-sub">Selecione o .xlsx preenchido</div></div></div>
+    <div class="step" id="step3"><div class="step-num">3</div><div><div class="step-label">Revisar</div><div class="step-sub">Confira antes de importar</div></div></div>
+    <div class="step" id="step4"><div class="step-num">4</div><div><div class="step-label">Concluído</div><div class="step-sub">Produtos no sistema</div></div></div>
   </div>
 
-  <!-- SECTION 1: PASTE -->
-  <div id="section-paste">
+  <!-- UPLOAD -->
+  <div id="section-upload">
     <div class="panel">
-      <div class="panel-title">📋 Dados da Planilha</div>
-      <textarea id="input-tabela" placeholder="Cole aqui o conteúdo copiado da planilha Excel (Ctrl+A → Ctrl+C dentro do Excel, depois cole aqui)..."></textarea>
-      <div class="hint">
-        💡 <span>No Excel, selecione tudo com <strong>Ctrl+A</strong>, copie com <strong>Ctrl+C</strong> e cole aqui. O sistema detecta automaticamente os produtos, códigos e valores para BRANCO e PRETO.</span>
+      <div class="ptitle">📥 Passo 1 — Baixe o modelo e preencha</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.7;">
+        Baixe a planilha modelo, preencha com os produtos do fornecedor e salve. O modelo já tem todas as colunas certas com instruções de preenchimento.
+      </p>
+      <button class="download-btn" onclick="baixarModelo()">⬇️ Baixar Planilha Modelo (.xlsx)</button>
+    </div>
+    <div class="panel">
+      <div class="ptitle">📤 Passo 2 — Selecione o arquivo preenchido</div>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="file-input" accept=".xlsx,.xls" onchange="arquivoSelecionado(this)">
+        <div class="upload-icon">📂</div>
+        <div class="upload-title">Clique aqui ou arraste o arquivo</div>
+        <div class="upload-sub">Aceita <strong>.xlsx</strong> — use apenas a planilha modelo MPLEÃO</div>
+      </div>
+      <div class="upload-selected" id="upload-selected">
+        <span style="font-size:24px;">📄</span>
+        <div><div class="fname" id="fname"></div><div class="fsize" id="fsize"></div></div>
+        <span style="margin-left:auto;color:var(--accent2);font-size:20px;">✓</span>
       </div>
       <div class="btn-row">
-        <button class="btn btn-primary" onclick="processarTabela()">🔍 Processar Tabela</button>
-        <button class="btn btn-ghost" onclick="carregarExemplo()">Carregar Exemplo</button>
+        <button class="btn btn-primary" id="btn-processar" onclick="processarArquivo()" disabled>🔍 Processar Arquivo</button>
       </div>
     </div>
   </div>
 
-  <!-- SECTION 2: PREVIEW -->
+  <!-- PREVIEW -->
   <div id="section-preview">
     <div class="panel">
-      <div class="panel-title">📊 Produtos Detectados</div>
-
-      <div class="stats-bar" id="stats-bar"></div>
-
-      <div class="filter-bar">
-        <input type="text" id="filtro-busca" placeholder="🔍 Filtrar por descrição ou código..." oninput="filtrarTabela()">
-        <select id="filtro-cor" onchange="filtrarTabela()">
-          <option value="">Todas as cores</option>
-          <option value="BRANCO">Branco</option>
-          <option value="PRETO">Preto</option>
-        </select>
-        <select id="filtro-cat" onchange="filtrarTabela()">
-          <option value="">Todas as categorias</option>
-        </select>
-        <label style="font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap;">
-          <input type="checkbox" id="chk-todos" onchange="toggleTodos(this.checked)"> Selecionar todos
-        </label>
+      <div class="ptitle">📊 Revisão — Produtos Detectados</div>
+      <div id="erros-validacao" class="erros-wrap" style="display:none;">
+        <strong style="color:var(--danger);">⚠️ Linhas com erro (serão ignoradas):</strong>
+        <ul id="lista-erros"></ul>
+        <p style="margin-top:8px;color:var(--muted);">Corrija a planilha e reimporte se necessário.</p>
       </div>
-
+      <div class="stats-bar" id="stats-bar"></div>
+      <div class="filter-bar">
+        <input type="text" id="filtro-busca" placeholder="🔍 Buscar por descrição ou cód. fornecedor..." oninput="renderizarTabela()">
+        <select id="filtro-status" onchange="renderizarTabela()">
+          <option value="">Todos</option>
+          <option value="novo">✨ Novos</option>
+          <option value="atualizar">🔄 Atualizar preço</option>
+          <option value="igual">— Sem alteração</option>
+        </select>
+        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="chk-todos" onchange="toggleTodos(this.checked)"> Selecionar todos visíveis
+        </label>
+        <span id="sel-count" style="font-size:12px;color:var(--muted);margin-left:auto;"></span>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th class="chk-cell"><input type="checkbox" id="chk-header" onchange="toggleTodos(this.checked)"></th>
-              <th>Código</th>
-              <th>Descrição</th>
-              <th>Categoria</th>
-              <th>Cor</th>
-              <th>Valor</th>
+              <th style="width:36px;"><input type="checkbox" id="chk-header" onchange="toggleTodos(this.checked)"></th>
+              <th>Status</th><th>Cód. Fornecedor</th><th>Descrição</th>
+              <th>Categoria</th><th>Cor</th><th>Fornecedor</th><th>Un.</th><th>Valor Venda</th><th>Custo</th>
             </tr>
           </thead>
           <tbody id="tbody-preview"></tbody>
         </table>
       </div>
-
       <div class="btn-row">
-        <button class="btn btn-success" id="btn-importar" onclick="iniciarImportacao()">
-          ✅ Importar Selecionados para o Firebase
-        </button>
-        <button class="btn btn-ghost" onclick="voltarPaste()">← Voltar</button>
-        <span id="sel-count" style="font-size:12px; color:var(--muted); margin-left:auto;"></span>
+        <button class="btn btn-success" id="btn-importar" onclick="iniciarImportacao()" disabled>✅ Importar Selecionados</button>
+        <button class="btn btn-ghost" onclick="voltarUpload()">← Voltar</button>
       </div>
-
-      <!-- PROGRESS -->
       <div class="progress-wrap" id="progress-wrap">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:13px; font-weight:600;">Importando...</span>
-          <span id="progress-pct" style="font-family:var(--mono); font-size:12px; color:var(--accent2);">0%</span>
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:13px;font-weight:600;">Importando...</span>
+          <span id="progress-pct" style="font-family:var(--mono);font-size:12px;color:var(--accent2);">0%</span>
         </div>
-        <div class="progress-bar-outer">
-          <div class="progress-bar-inner" id="progress-bar"></div>
-        </div>
-        <div class="progress-text" id="progress-text">Aguardando...</div>
+        <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
+        <div class="progress-text" id="progress-text"></div>
       </div>
       <div class="log-wrap" id="log-wrap"></div>
     </div>
   </div>
 
-  <!-- SECTION 3: DONE -->
+  <!-- DONE -->
   <div id="section-done">
     <div class="panel">
       <div class="done-center">
         <div class="done-icon">🎉</div>
         <div class="done-title">Importação Concluída!</div>
-        <div class="done-sub" id="done-msg">Produtos importados com sucesso.</div>
-        <div class="btn-row" style="justify-content:center; margin-top:28px;">
-          <button class="btn btn-primary" onclick="voltarInicio()">📋 Importar outra tabela</button>
-          <button class="btn btn-ghost" onclick="window.close()">Fechar</button>
+        <div class="done-sub" id="done-msg"></div>
+        <div class="btn-row" style="justify-content:center;margin-top:28px;">
+          <button class="btn btn-primary" onclick="voltarInicio()">📋 Importar outro arquivo</button>
         </div>
       </div>
     </div>
   </div>
-
 </main>
 
-<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBb8UGRV8qcjV6-_kd7WucWhoJBKSHcUac",
-  authDomain: "mpleaoerp.firebaseapp.com",
-  projectId: "mpleaoerp",
-  storageBucket: "mpleaoerp.appspot.com",
-  messagingSenderId: "449703614",
-  appId: "1:449703614:web:mpleaoerp"
-};
-
-const app = initializeApp(firebaseConfig);
+import { getFirestore, collection, addDoc, updateDoc, doc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+const app = initializeApp({ apiKey:"AIzaSyBb8UGRV8qcjV6-_kd7WucWhoJBKSHcUac", authDomain:"mpleaoerp.firebaseapp.com", projectId:"mpleaoerp" });
 const db = getFirestore(app);
-const auth = getAuth(app);
-
-window._db = db;
-window._collection = collection;
-window._addDoc = addDoc;
-window._serverTimestamp = serverTimestamp;
-window._getDocs = getDocs;
-
-// Busca próximo código disponível
-window.buscarProximoCodigo = async function() {
-  try {
-    const snap = await getDocs(collection(db, "produtos"));
-    let max = 0;
-    snap.forEach(d => {
-      const c = parseInt(d.data().codigo);
-      if (!isNaN(c) && c > max) max = c;
-    });
-    return max + 1;
-  } catch(e) {
-    return 1000;
-  }
+window._db=db; window._col=collection; window._add=addDoc; window._upd=updateDoc; window._doc=doc; window._ts=serverTimestamp;
+window.buscarFirebase = async function() {
+  const snap = await getDocs(collection(db,'produtos'));
+  const mapa={}; let maxC=0;
+  snap.forEach(d=>{ const x=d.data(); if(x.codigo_fornecedor) mapa[x.codigo_fornecedor]={id:d.id,codigo:x.codigo,valor_base:x.valor_base}; const n=parseInt(x.codigo); if(!isNaN(n)&&n>maxC) maxC=n; });
+  return {mapa, proximoCodigo: maxC+1};
 };
-
 </script>
 
 <script>
-// ==========================================
-// PARSER DA TABELA
-// ==========================================
+let arquivoXLSX=null, produtosParsed=[], selecionados=new Set(), mapaExistentes={}, proximoCodigo=1;
 
-let produtosParsed = [];
-let produtosFiltrados = [];
-let selecionados = new Set();
+const COLUNAS={'codigo_fornecedor *':'codigo_fornecedor','descricao *':'descricao','valor_venda *':'valor_venda','categoria':'categoria','cor':'cor','fornecedor':'fornecedor','unidade':'unidade','custo':'custo','marca':'marca','estoque_inicial':'estoque_inicial','observacoes':'observacoes'};
 
-function limparDescricao(raw) {
-  // Remove tabs múltiplos, compacta espaços, remove parênteses de composição
-  return raw
-    .replace(/\t+/g, ' ')
-    .replace(/ {2,}/g, ' ')
-    .replace(/\([\dL\s\-V]+\)/gi, '')
-    .trim();
-}
+function baixarModelo(){ const a=document.createElement('a'); a.href='modelo_importacao_mpleao.xlsx'; a.download='modelo_importacao_mpleao.xlsx'; a.click(); }
 
-function parsearValor(str) {
-  if (!str) return null;
-  const limpo = str.toString()
-    .replace('R$', '')
-    .replace(/\s/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
-  const n = parseFloat(limpo);
-  return isNaN(n) ? null : n;
-}
+// Drag & drop
+const zone=document.getElementById('upload-zone');
+zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
+zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);});
 
-function isLinhaCategoria(cols) {
-  // Linha de categoria: texto longo na primeira coluna, sem códigos numéricos longos
-  const texto = cols.join(' ').trim();
-  if (!texto) return false;
-  const primeiras = cols.slice(0, 6).join(' ').trim();
-  // Tem texto mas não tem padrão de código numérico de 5+ dígitos
-  const temCodigo = /\b\d{5,}\b/.test(texto);
-  const temValor = /\d{3,}[,\.]\d{2}/.test(texto);
-  const textoSignificativo = primeiras.length > 5 && /[A-Z]{3,}/.test(primeiras.toUpperCase());
-  return textoSignificativo && !temCodigo && !temValor;
-}
+function arquivoSelecionado(input){ if(input.files[0]) setFile(input.files[0]); }
 
-function isLinhaCabecalho(cols) {
-  const t = cols.join('\t').toUpperCase();
-  return t.includes('CÓDIGO') || t.includes('CODIGO') || t.includes('BRANCO') || t.includes('PRETO');
-}
-
-function extrairProdutosDaLinha(cols, categoria) {
-  // Normaliza: junta colunas até encontrar os dois códigos + valores
-  const textoCompleto = cols.join('\t');
-  
-  // Padrão: descrição ... CódigoB ... ValorB ... CódigoPR ... ValorPR
-  // Os códigos ficam nas últimas colunas, a descrição nas primeiras
-  
-  // Remove colunas vazias das pontas direita
-  let colsLimpos = [...cols];
-  while (colsLimpos.length > 0 && !colsLimpos[colsLimpos.length-1]?.toString().trim()) {
-    colsLimpos.pop();
-  }
-
-  // Procura por pares (código, valor) da direita para esquerda
-  // Um código é: sequência numérica de 4-10 dígitos
-  // Um valor é: número com vírgula ou ponto decimal e casas decimais
-  
-  const tokens = colsLimpos.map(c => c?.toString().trim()).filter(Boolean);
-  
-  let codigoPR = null, valorPR = null, codIdxPR = -1;
-  let codigoBR = null, valorBR = null, codIdxBR = -1;
-  
-  // Varre da direita buscando: valor, código, valor, código
-  let encontrados = [];
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    const t = tokens[i];
-    const v = parsearValor(t);
-    if (v !== null && v > 10) { // é um valor
-      // próximo código à esquerda (ignora "R$")
-      for (let j = i - 1; j >= 0; j--) {
-        const cand = tokens[j].replace('R$','').trim();
-        if (/^\d{4,10}$/.test(cand)) {
-          encontrados.push({ codigo: cand, valor: v, tokenIdx: j });
-          i = j; // pula para antes deste código
-          break;
-        }
-        if (cand !== '' && cand !== 'R$') break; // texto no meio, para
-      }
-      if (encontrados.length === 2) break;
-    }
-  }
-  
-  if (encontrados.length < 1) return [];
-  
-  // encontrados[0] = PRETO (mais à direita), encontrados[1] = BRANCO
-  codigoPR = encontrados[0]?.codigo;
-  valorPR  = encontrados[0]?.valor;
-  codigoBR = encontrados[1]?.codigo;
-  valorBR  = encontrados[1]?.valor;
-  
-  // Descrição: tudo antes do primeiro código encontrado
-  const idxCorte = encontrados.length > 1 ? Math.min(encontrados[0].tokenIdx, encontrados[1].tokenIdx) : encontrados[0].tokenIdx;
-  const descTokens = tokens.slice(0, idxCorte).filter(t => t !== 'R$');
-  const desc = limparDescricao(descTokens.join(' '));
-  
-  if (!desc || desc.length < 3) return [];
-  
-  const resultado = [];
-  
-  if (codigoBR && valorBR) {
-    resultado.push({
-      codigo: codigoBR,
-      descricao: desc + ' - BRANCO',
-      categoria: categoria,
-      cor: 'BRANCO',
-      valor_base: valorBR,
-      fornecedor: 'ALUMÍNIO',
-      unidade: 'UN'
-    });
-  }
-  
-  if (codigoPR && valorPR) {
-    resultado.push({
-      codigo: codigoPR,
-      descricao: desc + ' - PRETO',
-      categoria: categoria,
-      cor: 'PRETO',
-      valor_base: valorPR,
-      fornecedor: 'ALUMÍNIO',
-      unidade: 'UN'
-    });
-  }
-  
-  // Se só encontrou um (alguns produtos têm só uma cor)
-  if (resultado.length === 0 && encontrados[0]) {
-    resultado.push({
-      codigo: encontrados[0].codigo,
-      descricao: desc,
-      categoria: categoria,
-      cor: '',
-      valor_base: encontrados[0].valor,
-      fornecedor: 'ALUMÍNIO',
-      unidade: 'UN'
-    });
-  }
-  
-  return resultado;
-}
-
-function processarTabela() {
-  const raw = document.getElementById('input-tabela').value.trim();
-  if (!raw) {
-    alert('Cole os dados da planilha primeiro!');
-    return;
-  }
-  
-  const linhas = raw.split('\n');
-  produtosParsed = [];
-  let categoriaAtual = 'ALUMÍNIO';
-  
-  for (const linha of linhas) {
-    const cols = linha.split('\t');
-    const textoLinha = linha.trim();
-    
-    if (!textoLinha) continue;
-    if (isLinhaCabecalho(cols)) continue;
-    
-    // Detecta categoria
-    if (isLinhaCategoria(cols)) {
-      const txt = limparDescricao(cols.slice(0,6).join(' ')).toUpperCase();
-      if (txt.length > 3 && !txt.includes('TABELA') && !txt.includes('ESQUADRIA') && !txt.includes('LINHA')) {
-        categoriaAtual = txt;
-      }
-      continue;
-    }
-    
-    // Tenta extrair produtos
-    const prods = extrairProdutosDaLinha(cols, categoriaAtual);
-    produtosParsed.push(...prods);
-  }
-  
-  if (produtosParsed.length === 0) {
-    alert('Nenhum produto detectado. Verifique se os dados foram colados corretamente.');
-    return;
-  }
-  
-  // Inicializa seleção (todos marcados)
-  selecionados = new Set(produtosParsed.map((_, i) => i));
-  
-  renderizarPreview();
+function setFile(file){
+  if(!file.name.match(/\.(xlsx|xls)$/i)){ alert('Selecione um arquivo .xlsx ou .xls'); return; }
+  arquivoXLSX=file;
+  document.getElementById('fname').textContent=file.name;
+  document.getElementById('fsize').textContent=(file.size/1024).toFixed(1)+' KB';
+  document.getElementById('upload-selected').classList.add('visible');
+  document.getElementById('btn-processar').disabled=false;
   setStep(2);
-  document.getElementById('section-paste').style.display = 'none';
-  document.getElementById('section-preview').style.display = 'block';
 }
 
-function renderizarPreview() {
-  const busca = document.getElementById('filtro-busca').value.toLowerCase();
-  const filtroCor = document.getElementById('filtro-cor').value;
-  const filtroCat = document.getElementById('filtro-cat').value;
-  
-  produtosFiltrados = produtosParsed.filter((p, i) => {
-    const matchBusca = !busca || p.descricao.toLowerCase().includes(busca) || p.codigo.includes(busca);
-    const matchCor = !filtroCor || p.cor === filtroCor;
-    const matchCat = !filtroCat || p.categoria === filtroCat;
-    return matchBusca && matchCor && matchCat;
-  });
-  
-  const tbody = document.getElementById('tbody-preview');
-  tbody.innerHTML = '';
-  
-  produtosFiltrados.forEach((p, fi) => {
-    const i = produtosParsed.indexOf(p);
-    const checked = selecionados.has(i) ? 'checked' : '';
-    const corClass = p.cor === 'BRANCO' ? 'row-branco' : p.cor === 'PRETO' ? 'row-preto' : '';
-    const corTag = p.cor === 'BRANCO'
-      ? '<span class="cor-tag cor-branco">⬜ BRANCO</span>'
-      : p.cor === 'PRETO'
-      ? '<span class="cor-tag cor-preto">⬛ PRETO</span>'
-      : '';
-    
-    tbody.innerHTML += `
-      <tr class="${corClass}" data-idx="${i}">
-        <td class="chk-cell"><input type="checkbox" ${checked} onchange="toggleItem(${i}, this.checked)"></td>
-        <td><span class="code">${p.codigo}</span></td>
-        <td style="max-width:320px; font-size:12px;">${p.descricao}</td>
-        <td><span class="cat-tag">${p.categoria || '-'}</span></td>
-        <td>${corTag}</td>
-        <td><span class="price">R$ ${p.valor_base.toFixed(2).replace('.',',')}</span></td>
-      </tr>
+function parsearValor(str){
+  if(str===''||str===null||str===undefined) return null;
+  const s=String(str).replace(/[R$\s]/g,'').trim();
+  if(!s) return null;
+  if(/^\d{1,3}(\.\d{3})*(,\d{1,2})?$/.test(s)) return parseFloat(s.replace(/\./g,'').replace(',','.'));
+  const n=parseFloat(s.replace(',','.'));
+  return isNaN(n)?null:n;
+}
+
+async function processarArquivo(){
+  if(!arquivoXLSX) return;
+  const btn=document.getElementById('btn-processar');
+  btn.disabled=true; btn.textContent='⏳ Lendo arquivo...';
+
+  try {
+    const buf=await arquivoXLSX.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const linhas=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+
+    // Acha linha de cabeçalho
+    let linhaH=-1;
+    for(let i=0;i<Math.min(linhas.length,10);i++){
+      if(linhas[i].map(c=>String(c).toLowerCase()).some(c=>c.includes('codigo_fornecedor'))){ linhaH=i; break; }
+    }
+    if(linhaH===-1){ alert('Planilha inválida: cabeçalho não encontrado.\nUse apenas a planilha modelo MPLEÃO.'); btn.disabled=false; btn.textContent='🔍 Processar Arquivo'; return; }
+
+    // Mapeia colunas
+    const headerRow=linhas[linhaH].map(c=>String(c).trim());
+    const map={};
+    headerRow.forEach((n,i)=>{ if(COLUNAS[n]) map[COLUNAS[n]]=i; });
+
+    const falt=['codigo_fornecedor','descricao','valor_venda'].filter(c=>map[c]===undefined);
+    if(falt.length){ alert('Colunas obrigatórias não encontradas: '+falt.join(', ')); btn.disabled=false; btn.textContent='🔍 Processar Arquivo'; return; }
+
+    // Pula linha de dica se existir (texto sem código numérico na col A)
+    let inicio=linhaH+1;
+    const lp=linhas[inicio];
+    if(lp){ const v=String(lp[map['codigo_fornecedor']]||'').trim(); if(v.length>15&&!/^\d/.test(v)) inicio++; }
+
+    const erros=[], produtos=[];
+    for(let i=inicio;i<linhas.length;i++){
+      const row=linhas[i];
+      const g=campo=>String(row[map[campo]]??'').trim();
+      const cf=g('codigo_fornecedor'), desc=g('descricao'), vstr=g('valor_venda');
+      if(!cf&&!desc) break;
+      const nl=i+1;
+      if(!cf){ erros.push(`Linha ${nl}: código do fornecedor vazio`); continue; }
+      if(!desc){ erros.push(`Linha ${nl}: descrição vazia (cód: ${cf})`); continue; }
+      const vv=parsearValor(vstr);
+      if(vv===null||vv<=0){ erros.push(`Linha ${nl}: valor inválido "${vstr}" (cód: ${cf})`); continue; }
+      const un=g('unidade').toUpperCase()||'UN';
+      produtos.push({ codigo_fornecedor:cf, descricao:desc, valor_venda:vv,
+        categoria:g('categoria')||'', cor:g('cor'), fornecedor:g('fornecedor'),
+        unidade:['UN','M2','MT','KIT','CX','PC','KG'].includes(un)?un:'UN',
+        custo:parsearValor(g('custo'))||0, marca:g('marca'),
+        estoque_inicial:parseInt(g('estoque_inicial'))||0, observacoes:g('observacoes'),
+        _status:null });
+    }
+
+    if(!produtos.length&&!erros.length){ alert('Nenhum produto encontrado na planilha.'); btn.disabled=false; btn.textContent='🔍 Processar Arquivo'; return; }
+
+    if(erros.length){
+      document.getElementById('lista-erros').innerHTML=erros.map(e=>`<li>${e}</li>`).join('');
+      document.getElementById('erros-validacao').style.display='block';
+    } else { document.getElementById('erros-validacao').style.display='none'; }
+
+    btn.textContent='🔍 Verificando no sistema...';
+    const {mapa,proximoCodigo:pc}=await window.buscarFirebase();
+    mapaExistentes=mapa; proximoCodigo=pc;
+
+    let novos=0,ats=0,iguais=0;
+    produtos.forEach(p=>{
+      const ex=mapa[p.codigo_fornecedor];
+      if(!ex){ p._status='novo'; novos++; }
+      else if(Math.abs(ex.valor_base-p.valor_venda)>0.01){ p._status='atualizar'; p._idExist=ex.id; p._codSis=ex.codigo; ats++; }
+      else{ p._status='igual'; p._idExist=ex.id; p._codSis=ex.codigo; iguais++; }
+    });
+
+    produtosParsed=produtos;
+    selecionados=new Set(produtosParsed.map((p,i)=>({p,i})).filter(({p})=>p._status==='novo'||p._status==='atualizar').map(({i})=>i));
+
+    document.getElementById('stats-bar').innerHTML=`
+      <div class="stat"><div class="stat-val">${produtos.length}</div><div class="stat-label">Total lido</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--accent2)">${novos}</div><div class="stat-label">✨ Novos</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--warn)">${ats}</div><div class="stat-label">🔄 Atualizar preço</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--muted)">${iguais}</div><div class="stat-label">— Sem alteração</div></div>
+      ${erros.length?`<div class="stat"><div class="stat-val" style="color:var(--danger)">${erros.length}</div><div class="stat-label">❌ Erros</div></div>`:''}
     `;
+
+    renderizarTabela();
+    setStep(3);
+    document.getElementById('section-upload').style.display='none';
+    document.getElementById('section-preview').style.display='block';
+
+  } catch(e){ console.error(e); alert('Erro ao ler arquivo: '+e.message); btn.disabled=false; btn.textContent='🔍 Processar Arquivo'; }
+}
+
+function renderizarTabela(){
+  const busca=document.getElementById('filtro-busca').value.toLowerCase();
+  const fst=document.getElementById('filtro-status').value;
+  const filt=produtosParsed.filter((p,i)=>{
+    const mb=!busca||p.descricao.toLowerCase().includes(busca)||p.codigo_fornecedor.toLowerCase().includes(busca);
+    const ms=!fst||p._status===fst;
+    return mb&&ms;
   });
-  
-  // Stats
-  const total = produtosParsed.length;
-  const brancos = produtosParsed.filter(p=>p.cor==='BRANCO').length;
-  const pretos = produtosParsed.filter(p=>p.cor==='PRETO').length;
-  const cats = [...new Set(produtosParsed.map(p=>p.categoria))].length;
-  
-  document.getElementById('stats-bar').innerHTML = `
-    <div class="stat"><div class="stat-val">${total}</div><div class="stat-label">Total de produtos</div></div>
-    <div class="stat"><div class="stat-val" style="color:#cbd5e1">${brancos}</div><div class="stat-label">⬜ Brancos</div></div>
-    <div class="stat"><div class="stat-val" style="color:#64748b">${pretos}</div><div class="stat-label">⬛ Pretos</div></div>
-    <div class="stat"><div class="stat-val" style="color:var(--warn)">${cats}</div><div class="stat-label">Categorias</div></div>
-  `;
-  
-  // Popula filtro de categoria
-  const catSelect = document.getElementById('filtro-cat');
-  const catAtual = catSelect.value;
-  const categorias = [...new Set(produtosParsed.map(p=>p.categoria))].sort();
-  catSelect.innerHTML = '<option value="">Todas as categorias</option>';
-  categorias.forEach(c => {
-    catSelect.innerHTML += `<option value="${c}" ${c===catAtual?'selected':''}>${c}</option>`;
+  const tbody=document.getElementById('tbody-preview');
+  tbody.innerHTML='';
+  filt.forEach(p=>{
+    const i=produtosParsed.indexOf(p);
+    const chk=selecionados.has(i)?'checked':'';
+    const stag={novo:'<span class="badge badge-new">✨ Novo</span>',atualizar:'<span class="badge badge-upd">🔄 Preço novo</span>',igual:'<span class="badge-eq">— Igual</span>'}[p._status]||'';
+    const prev=p._status==='atualizar'&&mapaExistentes[p.codigo_fornecedor]?`<br><span style="font-size:10px;color:var(--muted);text-decoration:line-through;">R$ ${mapaExistentes[p.codigo_fornecedor].valor_base.toFixed(2).replace('.',',')}</span>`:'';
+    tbody.innerHTML+=`<tr>
+      <td style="text-align:center;"><input type="checkbox" ${chk} onchange="toggleItem(${i},this.checked)"></td>
+      <td>${stag}</td>
+      <td><span class="code">${p.codigo_fornecedor}</span></td>
+      <td style="max-width:280px;font-size:12px;">${p.descricao}</td>
+      <td>${p.categoria?`<span class="cat-tag">${p.categoria}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:11px;">${p.cor||'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:11px;">${p.fornecedor||'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-family:var(--mono);font-size:11px;">${p.unidade}</td>
+      <td><span class="price">R$ ${p.valor_venda.toFixed(2).replace('.',',')}</span>${prev}</td>
+      <td style="font-size:11px;color:var(--muted);">${p.custo?'R$ '+p.custo.toFixed(2).replace('.',','):'—'}</td>
+    </tr>`;
   });
-  
   atualizarContador();
 }
 
-function filtrarTabela() { renderizarPreview(); }
-
-function toggleItem(idx, checked) {
-  if (checked) selecionados.add(idx);
-  else selecionados.delete(idx);
-  atualizarContador();
-}
-
-function toggleTodos(checked) {
-  document.getElementById('chk-header').checked = checked;
-  document.getElementById('chk-todos').checked = checked;
-  produtosFiltrados.forEach(p => {
-    const i = produtosParsed.indexOf(p);
-    if (checked) selecionados.add(i);
-    else selecionados.delete(i);
+function toggleItem(idx,checked){ checked?selecionados.add(idx):selecionados.delete(idx); atualizarContador(); }
+function toggleTodos(checked){
+  document.getElementById('chk-header').checked=checked;
+  document.getElementById('chk-todos').checked=checked;
+  const busca=document.getElementById('filtro-busca').value.toLowerCase();
+  const fst=document.getElementById('filtro-status').value;
+  produtosParsed.forEach((p,i)=>{
+    const mb=!busca||p.descricao.toLowerCase().includes(busca)||p.codigo_fornecedor.toLowerCase().includes(busca);
+    const ms=!fst||p._status===fst;
+    if(mb&&ms) checked?selecionados.add(i):selecionados.delete(i);
   });
-  renderizarPreview();
+  renderizarTabela();
+}
+function atualizarContador(){
+  const n=selecionados.size;
+  document.getElementById('sel-count').textContent=`${n} selecionado${n!==1?'s':''}`;
+  document.getElementById('btn-importar').disabled=n===0;
 }
 
-function atualizarContador() {
-  const n = selecionados.size;
-  document.getElementById('sel-count').textContent = `${n} produto${n!==1?'s':''} selecionado${n!==1?'s':''}`;
-  document.getElementById('btn-importar').disabled = n === 0;
-}
-
-// ==========================================
-// IMPORTAÇÃO FIREBASE
-// ==========================================
-
-async function iniciarImportacao() {
-  const lista = produtosParsed.filter((_, i) => selecionados.has(i));
-  if (lista.length === 0) return;
-
-  document.getElementById('btn-importar').disabled = true;
+async function iniciarImportacao(){
+  const lista=produtosParsed.filter((_,i)=>selecionados.has(i));
+  if(!lista.length) return;
+  document.getElementById('btn-importar').disabled=true;
   document.getElementById('progress-wrap').classList.add('visible');
   document.getElementById('log-wrap').classList.add('visible');
+  const logEl=document.getElementById('log-wrap');
+  const barEl=document.getElementById('progress-bar');
+  const pctEl=document.getElementById('progress-pct');
+  const txtEl=document.getElementById('progress-text');
+  let ins=0,ats=0,errs=0,off=0;
 
-  const logEl = document.getElementById('log-wrap');
-  const barEl = document.getElementById('progress-bar');
-  const pctEl = document.getElementById('progress-pct');
-  const txtEl = document.getElementById('progress-text');
-
-  let ok = 0, erros = 0;
-  const proximoCodigo = await window.buscarProximoCodigo();
-
-  for (let i = 0; i < lista.length; i++) {
-    const p = lista[i];
-    const pct = Math.round(((i + 1) / lista.length) * 100);
-    barEl.style.width = pct + '%';
-    pctEl.textContent = pct + '%';
-    txtEl.textContent = `[${i+1}/${lista.length}] ${p.descricao}`;
-
-    try {
-      await window._addDoc(
-        window._collection(window._db, 'produtos'),
-        {
-          codigo:        p.codigo,
-          descricao:     p.descricao,
-          categoria:     p.categoria || 'ALUMÍNIO',
-          cor:           p.cor || '',
-          fornecedor:    p.fornecedor || '',
-          unidade:       p.unidade || 'UN',
-          valor_base:    p.valor_base,
-          custo:         0,
-          estoque_atual: 0,
-          estoque_minimo: 0,
-          observacoes:   'Importado via tabela 2026',
-          data_cadastro: window._serverTimestamp()
-        }
-      );
-      ok++;
-      logEl.innerHTML += `<div class="log-ok">✅ ${p.codigo} — ${p.descricao}</div>`;
-    } catch(e) {
-      erros++;
-      logEl.innerHTML += `<div class="log-err">❌ ERRO ${p.codigo}: ${e.message}</div>`;
-    }
-
-    logEl.scrollTop = logEl.scrollHeight;
-    await new Promise(r => setTimeout(r, 80)); // pequena pausa
+  for(let i=0;i<lista.length;i++){
+    const p=lista[i];
+    const pct=Math.round(((i+1)/lista.length)*100);
+    barEl.style.width=pct+'%'; pctEl.textContent=pct+'%'; txtEl.textContent=`[${i+1}/${lista.length}] ${p.descricao}`;
+    try{
+      if(p._status==='atualizar'&&p._idExist){
+        await window._upd(window._doc(window._db,'produtos',p._idExist),{valor_base:p.valor_venda});
+        ats++; logEl.innerHTML+=`<div class="log-upd">🔄 #${p._codSis} | Forn: ${p.codigo_fornecedor} → R$ ${p.valor_venda.toFixed(2).replace('.',',')}</div>`;
+      } else {
+        const cod=String(proximoCodigo+off).padStart(3,'0'); off++;
+        await window._add(window._col(window._db,'produtos'),{
+          codigo:cod, codigo_fornecedor:p.codigo_fornecedor, descricao:p.descricao,
+          categoria:p.categoria, cor:p.cor, fornecedor:p.fornecedor, unidade:p.unidade,
+          marca:p.marca, valor_base:p.valor_venda, custo:p.custo,
+          estoque_atual:p.estoque_inicial, estoque_minimo:0,
+          observacoes:p.observacoes||'Importado via planilha modelo',
+          data_cadastro:window._ts()
+        });
+        ins++; logEl.innerHTML+=`<div class="log-ok">✅ #${cod} | Forn: ${p.codigo_fornecedor} — ${p.descricao}</div>`;
+      }
+    } catch(e){ errs++; logEl.innerHTML+=`<div class="log-err">❌ ERRO ${p.codigo_fornecedor}: ${e.message}</div>`; }
+    logEl.scrollTop=logEl.scrollHeight;
+    await new Promise(r=>setTimeout(r,60));
   }
 
-  document.getElementById('done-msg').textContent =
-    `${ok} produto${ok!==1?'s':''} importado${ok!==1?'s':''} com sucesso${erros>0?' · '+erros+' erro(s)':''}.`;
-
-  setTimeout(() => {
-    setStep(3);
-    document.getElementById('section-preview').style.display = 'none';
-    document.getElementById('section-done').style.display = 'block';
-  }, 800);
+  const p=[];
+  if(ins) p.push(`${ins} produto${ins!==1?'s':''} inserido${ins!==1?'s':''}`);
+  if(ats) p.push(`${ats} preço${ats!==1?'s':''} atualizado${ats!==1?'s':''}`);
+  if(errs) p.push(`${errs} erro${errs!==1?'s':''}`);
+  document.getElementById('done-msg').textContent=p.join(' · ')+'.';
+  setTimeout(()=>{ setStep(4); document.getElementById('section-preview').style.display='none'; document.getElementById('section-done').style.display='block'; },600);
 }
 
-function voltarPaste() {
-  document.getElementById('section-preview').style.display = 'none';
-  document.getElementById('section-paste').style.display = 'block';
-  setStep(1);
+function voltarUpload(){
+  document.getElementById('section-preview').style.display='none';
+  document.getElementById('section-upload').style.display='block';
+  document.getElementById('btn-processar').disabled=false;
+  document.getElementById('btn-processar').textContent='🔍 Processar Arquivo';
+  setStep(arquivoXLSX?2:1);
 }
-
-function voltarInicio() {
-  document.getElementById('section-done').style.display = 'none';
-  document.getElementById('section-paste').style.display = 'block';
-  document.getElementById('input-tabela').value = '';
+function voltarInicio(){
+  arquivoXLSX=null; produtosParsed=[]; selecionados.clear();
+  document.getElementById('file-input').value='';
+  document.getElementById('upload-selected').classList.remove('visible');
+  document.getElementById('btn-processar').disabled=true;
   document.getElementById('progress-wrap').classList.remove('visible');
   document.getElementById('log-wrap').classList.remove('visible');
+  document.getElementById('section-done').style.display='none';
+  document.getElementById('section-upload').style.display='block';
   setStep(1);
 }
-
-function setStep(n) {
-  [1,2,3].forEach(i => {
-    const el = document.getElementById('step'+i);
+function setStep(n){
+  [1,2,3,4].forEach(i=>{
+    const el=document.getElementById('step'+i);
     el.classList.remove('active','done');
-    if (i < n) el.classList.add('done');
-    if (i === n) el.classList.add('active');
-    if (i < n) el.querySelector('.step-num').textContent = '✓';
-    else el.querySelector('.step-num').textContent = i;
+    if(i<n){el.classList.add('done');el.querySelector('.step-num').textContent='✓';}
+    else{if(i===n)el.classList.add('active');el.querySelector('.step-num').textContent=i;}
   });
 }
 
-function carregarExemplo() {
-  const exemplo = `ESQUADRIAS DE ALUMINIO\t\t\t\t\t\t\t\t\t\t\t\t\t\t
-TABELA 2026\t\t\t\t\t\t\t\t\t\t\t\t\t\t
-\t\t\t\t\t\t\t\t\t\t\tBRANCO\t\t\tPRETO\t\t
-PORTA  BALCAO 3 FOLHAS MOVEL\t\t\t\t\t\t\t\t\t\t\tCÓDIGO\tVALOR\t\tCÓDIGO\tVALOR\t
-PTA\tBALCAO\t3F\tMOV\t120X210X12,2\t\t(2L\t-\t1V)\t2533101\tR$\t2.409,80\t2533100\tR$\t2.530,30
-PTA\tBALCAO\t3F\tMOV\t150X210X12,2\t\t(2L\t-\t1V)\t2533111\tR$\t2.777,48\t25331110\tR$\t2.916,36
-PTA\tBALCAO\t3F\tMOV\t160X210X12,2\t\t(2L\t-\t1V)\t2533118\tR$\t3.054,00\t25331180\tR$\t3.206,70
-PTA\tBALCAO\t3F\tMOV\t200X210X12,2\t\t(2L\t-\t1V)\t2532021\tR$\t3.192,76\t25331120\tR$\t3.352,40
-\t\t\t\t\t\t\t\t\t\t\tBRANCO\t\t\tPRETO\t\t
-PORTAS PALHETA SUSPENSA\t\t\t\t\t\t\t\t\t\t\tCÓDIGO\tVALOR\t\tCÓDIGO\tVALOR\t
-PTA\tPALHETA\t\t80/5X210X4\t\t\tDIR\t\t\t252811\tR$\t1239,43\t252841\tR$\t1301,40
-PTA\tPALHETA\t\t80/5X210X4\t\t\tESQ\t\t\t252812\tR$\t1239,43\t252842\tR$\t1301,40`;
-  document.getElementById('input-tabela').value = exemplo;
-}
-
-// Inicializa contador
-window.addEventListener('load', () => {
-  document.getElementById('btn-importar') && (document.getElementById('btn-importar').disabled = true);
-});
-
-window.processarTabela = processarTabela;
-window.filtrarTabela = filtrarTabela;
-window.toggleItem = toggleItem;
-window.toggleTodos = toggleTodos;
-window.iniciarImportacao = iniciarImportacao;
-window.voltarPaste = voltarPaste;
-window.voltarInicio = voltarInicio;
-window.carregarExemplo = carregarExemplo;
+window.arquivoSelecionado=arquivoSelecionado;
+window.processarArquivo=processarArquivo;
+window.renderizarTabela=renderizarTabela;
+window.toggleItem=toggleItem;
+window.toggleTodos=toggleTodos;
+window.iniciarImportacao=iniciarImportacao;
+window.voltarUpload=voltarUpload;
+window.voltarInicio=voltarInicio;
+window.baixarModelo=baixarModelo;
 </script>
-
 </body>
 </html>

@@ -95,6 +95,7 @@ function renderizarListaProdutosResultados() {
                         </div>
                     </div>
                     <div class="flex items-center gap-3 text-xs mt-1">
+                        ${produto.codigo_fornecedor ? `<span class="text-gray-500">🏭 Cód.Forn: ${produto.codigo_fornecedor}</span>` : ''}
                         ${produto.codigo_barras ? `<span class="text-gray-500">📊 ${produto.codigo_barras}</span>` : ''}
                         ${estoqueText ? `<span class="${estoqueClass}">📦 ${estoqueText}</span>` : ''}
                     </div>
@@ -191,6 +192,7 @@ function filtrarProdutosModal(termo) {
         const tl = termo.toLowerCase();
         modalProdutosFiltrados = window.bancoProdutos.filter(p =>
             (p.codigo && p.codigo.toString().includes(tl)) ||
+            (p.codigo_fornecedor && p.codigo_fornecedor.toLowerCase().includes(tl)) ||
             (p.codigo_barras && p.codigo_barras.toLowerCase().includes(tl)) ||
             (p.descricao && p.descricao.toLowerCase().includes(tl)) ||
             (p.fornecedor && p.fornecedor.toLowerCase().includes(tl)) ||
@@ -312,6 +314,10 @@ function abrirCadastroCompletoProduto(produtoId = null) {
                         <p class="text-xs text-gray-500 mt-1">🔒 Automático</p>
                     </div>
                     <div>
+                        <label class="text-xs font-medium">Cód. Fornecedor</label>
+                        <input id="swal-prod-codigo-forn" class="w-full p-2 border rounded text-sm" value="${produto ? produto.codigo_fornecedor || '' : ''}" placeholder="Ex: 2533101">
+                    </div>
+                    <div>
                         <label class="text-xs font-medium">Código de Barras</label>
                         <input id="swal-prod-codigo-barras" class="w-full p-2 border rounded text-sm" value="${produto ? produto.codigo_barras || '' : ''}" placeholder="789...">
                     </div>
@@ -402,6 +408,7 @@ function abrirCadastroCompletoProduto(produtoId = null) {
             if (codigoExiste) { Swal.showValidationMessage(`Código ${codigo} já está em uso!`); return false; }
             return {
                 codigo, descricao,
+                codigo_fornecedor: document.getElementById('swal-prod-codigo-forn').value.trim(),
                 codigo_barras: document.getElementById('swal-prod-codigo-barras').value.trim(),
                 categoria: document.getElementById('swal-prod-categoria').value.trim(),
                 marca: document.getElementById('swal-prod-marca').value.trim(),
