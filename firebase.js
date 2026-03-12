@@ -718,7 +718,7 @@ const FLUXO_PERMITIDO = {
     'Orçamento Não Aprovado': []
 };
 
-window.selecionarStatus = function(novoStatus) {
+window.selecionarStatus = async function(novoStatus) {
     const selectStatus = document.getElementById('select-status');
     const statusAtual = selectStatus ? selectStatus.value : 'Orçamento';
 
@@ -744,6 +744,57 @@ window.selecionarStatus = function(novoStatus) {
         atualizarBotoesStatus(statusAtual);
         return;
     }
+
+    // ── VERIFICAÇÃO DE LIMITE DE CRÉDITO ao entrar em Produção ──────────
+    if (novoStatus === 'Produção') {
+        const nomeCliente = document.getElementById('input-cliente')?.value || '';
+        const clienteObj = window.bancoClientes.find(c => c.nome === nomeCliente);
+        const limite = parseFloat(clienteObj?.limite) || 0;
+
+        if (limite > 0) {
+            const pedidoIdAtual = document.getElementById('pedido-id-atual')?.value || '';
+            const totalAtual = parseFloat(
+                document.getElementById('btn-gerar-pdf')?.getAttribute('data-total')?.replace(',', '.') || '0'
+            ) || 0;
+
+            // Soma pedidos ativos do cliente (exceto o atual)
+            const ESTADOS_ATIVOS = ['Produção', 'Em Entrega'];
+            const totalEmAberto = window.bancoPedidos
+                .filter(p => p.cliente_id === clienteObj?.id && ESTADOS_ATIVOS.includes(p.status) && p.id !== pedidoIdAtual)
+                .reduce((sum, p) => sum + (parseFloat(p.valor_total) || 0), 0);
+
+            const totalComEste = totalEmAberto + totalAtual;
+
+            if (totalComEste > limite) {
+                const fmt = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                const result = await Swal.fire({
+                    icon: 'warning',
+                    title: '⚠️ Limite de crédito excedido',
+                    html: `
+                        <div style="text-align:left;font-size:14px;line-height:1.8">
+                            <b>Cliente:</b> ${clienteObj.nome}<br>
+                            <b>Limite:</b> <span style="color:#16a34a">${fmt(limite)}</span><br>
+                            <b>Em aberto:</b> <span style="color:#dc2626">${fmt(totalEmAberto)}</span><br>
+                            <b>Este pedido:</b> <span style="color:#2563eb">${fmt(totalAtual)}</span><br>
+                            <hr style="margin:8px 0">
+                            <b>Total com este pedido:</b> <span style="color:#dc2626;font-weight:bold">${fmt(totalComEste)}</span><br>
+                            <b>Limite disponível:</b> <span style="color:#dc2626;font-weight:bold">${fmt(Math.max(0, limite - totalEmAberto))}</span>
+                        </div>`,
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: '⚠️ Produzir mesmo assim',
+                    cancelButtonText: 'Cancelar'
+                });
+
+                if (!result.isConfirmed) {
+                    atualizarBotoesStatus(statusAtual);
+                    return;
+                }
+            }
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
     if (selectStatus) selectStatus.value = novoStatus;
     atualizarBotoesStatus(novoStatus);
