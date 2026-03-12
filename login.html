@@ -50,7 +50,7 @@
     <script type="module">
         // Importa as funções oficiais do Firebase direto do Google
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         // Suas chaves (Cérebro do sistema)
         const firebaseConfig = {
