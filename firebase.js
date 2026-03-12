@@ -1033,7 +1033,9 @@ window.novoPedido = function() {
 
     const selectCliente = document.getElementById('input-cliente');
     if (selectCliente) {
+        selectCliente.disabled = false;
         if ($.fn.select2) {
+            $(selectCliente).next('.select2-container').css('pointer-events','').css('opacity','');
             $(selectCliente).val('').trigger('change');
         } else {
             selectCliente.value = '';
@@ -1401,6 +1403,9 @@ window.abrirPedidoParaEdicao = function(id) {
         } else {
             selectCliente.value = pedido.cliente_nome;
         }
+        // Bloqueia troca de cliente em pedido existente
+        selectCliente.disabled = true;
+        if ($.fn.select2) $(selectCliente).next('.select2-container').css('pointer-events','none').css('opacity','0.6');
     }
 
     document.getElementById('pdf-n-display').innerText = '#' + (pedido.numero_sequencial?.toString().padStart(3, '0') || '???');
