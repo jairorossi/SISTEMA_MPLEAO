@@ -1417,6 +1417,7 @@ document.getElementById('btn-salvar-cliente').addEventListener('click', async ()
 
     let codigo = '';
     if (!id) {
+        // Novo cliente: gera próximo código sequencial
         let maxCodigo = 0;
         window.bancoClientes.forEach(c => {
             if (c.codigo) {
@@ -1425,6 +1426,21 @@ document.getElementById('btn-salvar-cliente').addEventListener('click', async ()
             }
         });
         codigo = (maxCodigo + 1).toString().padStart(4, '0');
+    } else {
+        // Edição: preserva o código existente
+        const clienteExistente = window.bancoClientes.find(c => c.id === id);
+        codigo = clienteExistente?.codigo || '';
+        // Se por algum motivo não tem código, gera agora
+        if (!codigo) {
+            let maxCodigo = 0;
+            window.bancoClientes.forEach(c => {
+                if (c.codigo) {
+                    const num = parseInt(c.codigo);
+                    if (!isNaN(num) && num > maxCodigo) maxCodigo = num;
+                }
+            });
+            codigo = (maxCodigo + 1).toString().padStart(4, '0');
+        }
     }
 
     const d = {
@@ -1436,7 +1452,34 @@ document.getElementById('btn-salvar-cliente').addEventListener('click', async ()
 
     try {
         if (id) {
+            const clienteExistente = window.bancoClientes.find(c => c.id === id);
+            const nomeAntigo = clienteExistente?.nome || '';
             await updateDoc(doc(db, "clientes", id), d);
+
+            // Se o nome mudou, propaga para pedidos e parcelas vinculados
+            if (nomeAntigo && nomeAntigo !== nome) {
+                const pedidosVinculados = window.bancoPedidos.filter(p => p.cliente_id === id);
+                if (pedidosVinculados.length > 0) {
+                    const batch = writeBatch(db);
+                    pedidosVinculados.forEach(p => {
+                        batch.update(doc(db, 'pedidos', p.id), { cliente_nome: nome });
+                    });
+                    await batch.commit();
+
+                    // Propaga também para parcelas (busca por cliente_nome antigo)
+                    const parcelasSnap = await getDocs(collection(db, 'parcelas'));
+                    const batchParc = writeBatch(db);
+                    let temParcelas = false;
+                    parcelasSnap.forEach(docSnap => {
+                        if (docSnap.data().clienteNome === nomeAntigo) {
+                            batchParc.update(docSnap.ref, { clienteNome: nome });
+                            temParcelas = true;
+                        }
+                    });
+                    if (temParcelas) await batchParc.commit();
+                }
+            }
+
             Swal.fire({ icon: 'success', title: 'Sucesso!', text: 'Cliente atualizado!', timer: 2000, showConfirmButton: false });
         } else {
             await addDoc(collection(db, "clientes"), { ...d, data_cadastro: serverTimestamp() });
@@ -1484,11 +1527,13 @@ window.abrirPedidoParaEdicao = function(id) {
     }
 
     const selectCliente = document.getElementById('input-cliente');
-    if (selectCliente && pedido.cliente_nome) {
+    // Busca o nome atual do cliente pelo ID (não pelo nome salvo no pedido, que pode estar desatualizado)
+    const nomeClienteAtual = cliente?.nome || pedido.cliente_nome || '';
+    if (selectCliente && nomeClienteAtual) {
         if ($.fn.select2) {
-            $(selectCliente).val(pedido.cliente_nome).trigger('change');
+            $(selectCliente).val(nomeClienteAtual).trigger('change');
         } else {
-            selectCliente.value = pedido.cliente_nome;
+            selectCliente.value = nomeClienteAtual;
         }
         // Bloqueia troca de cliente em pedido existente
         selectCliente.disabled = true;
