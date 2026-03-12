@@ -652,8 +652,20 @@ async function gerarPDF() {
         btn.innerHTML = '💾 Salvando...';
         try {
             await window.salvarPedidoAtual();
-            // Aguarda um momento para o ID ser preenchido
-            await new Promise(r => setTimeout(r, 500));
+            // Aguarda o pdf-n-display ser preenchido com o número real (máx 3s)
+            await new Promise((resolve) => {
+                const inicio = Date.now();
+                const checar = setInterval(() => {
+                    const num = document.getElementById('pdf-n-display')?.innerText || '';
+                    if (num && num !== 'NOVO' && num !== '') {
+                        clearInterval(checar);
+                        resolve();
+                    } else if (Date.now() - inicio > 3000) {
+                        clearInterval(checar);
+                        resolve(); // timeout — segue mesmo assim
+                    }
+                }, 100);
+            });
         } catch(e) {
             btn.disabled = false;
             btn.innerHTML = '🖨️ Imprimir Pedido';
@@ -668,7 +680,8 @@ async function gerarPDF() {
     btn.innerHTML = '✨ Gerando PDF...';
     btn.disabled = true;
 
-    const numeroExibicao = document.getElementById('pdf-n-display')?.innerText || 'NOVO';
+    const numeroExibicao = document.getElementById('pdf-n-display')?.innerText || '';
+    const numeroFinal = (numeroExibicao && numeroExibicao !== 'NOVO') ? numeroExibicao : '???';
     const endereco = document.getElementById('input-endereco')?.value || clienteObj.endereco || '';
     const previsao = document.getElementById('input-previsao')?.value || 'A combinar';
     const dataAtual = new Date().toLocaleDateString('pt-BR');
@@ -740,7 +753,7 @@ async function gerarPDF() {
                     <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Serralheria & Vidraçaria</p>
                 </div>
                 <div style="text-align:right;">
-                    <h2 style="margin:0;font-size:18px;">PEDIDO Nº ${numeroExibicao}</h2>
+                    <h2 style="margin:0;font-size:18px;">PEDIDO Nº ${numeroFinal}</h2>
                     <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Data: ${dataAtual}</p>
                 </div>
             </div>
@@ -782,7 +795,7 @@ async function gerarPDF() {
 
     const opcoes = {
         margin: 10,
-        filename: `Pedido_${numeroExibicao}_${nomeCliente.replace(/\s+/g,'_')}.pdf`,
+        filename: `Pedido_${numeroFinal}_${nomeCliente.replace(/\s+/g,'_')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
