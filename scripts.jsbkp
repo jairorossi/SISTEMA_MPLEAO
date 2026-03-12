@@ -607,81 +607,19 @@ function calcularTudo() {
 // ==========================================
 // PDF
 // ==========================================
-async function gerarPDF() {
+function gerarPDF() {
     const btn = document.getElementById('btn-gerar-pdf');
     if (!btn) return;
-
-    // ── VALIDAÇÕES ──────────────────────────────────────────────────────
-    const nomeCliente = document.getElementById('input-cliente')?.value?.trim();
-    if (!nomeCliente) {
-        Swal.fire({ icon: 'warning', title: 'Cliente obrigatório', text: 'Selecione um cliente antes de imprimir.', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    const linhasItens = [...document.querySelectorAll('#tabela-itens tr')].filter(tr => tr.querySelector('.produto-select'));
-    if (linhasItens.length === 0) {
-        Swal.fire({ icon: 'warning', title: 'Sem itens', text: 'Adicione pelo menos um item ao pedido antes de imprimir.', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    const totalAttr = parseFloat((btn.getAttribute('data-total') || '0').replace(',', '.'));
-    if (!totalAttr || totalAttr <= 0) {
-        Swal.fire({ icon: 'warning', title: 'Total inválido', text: 'O valor total do pedido está zerado. Verifique os itens.', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    // ── SALVAR AUTOMATICAMENTE SE AINDA NÃO FOI SALVO ───────────────────
-    const pedidoId = document.getElementById('pedido-id')?.value || '';
-    if (!pedidoId) {
-        const confirm = await Swal.fire({
-            icon: 'question',
-            title: 'Pedido não salvo',
-            text: 'O pedido ainda não foi salvo. Deseja salvar agora e gerar o PDF?',
-            showCancelButton: true,
-            confirmButtonText: '💾 Salvar e Imprimir',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#3b82f6',
-            cancelButtonColor: '#6b7280'
-        });
-        if (!confirm.isConfirmed) return;
-
-        // Salva o pedido antes de gerar
-        btn.disabled = true;
-        btn.innerHTML = '💾 Salvando...';
-        try {
-            await window.salvarPedidoAtual();
-            // Aguarda um momento para o ID ser preenchido
-            await new Promise(r => setTimeout(r, 500));
-        } catch(e) {
-            btn.disabled = false;
-            btn.innerHTML = '🖨️ Imprimir Pedido';
-            return; // salvarPedidoAtual já mostra o erro
-        }
-        btn.disabled = false;
-    }
-
-    // ── BUSCA DADOS COMPLETOS DO CLIENTE ────────────────────────────────
-    const clienteObj = window.bancoClientes?.find(c => c.nome === nomeCliente) || {};
     const textoOriginal = btn.innerHTML;
     btn.innerHTML = '✨ Gerando PDF...';
-    btn.disabled = true;
 
     const numeroExibicao = document.getElementById('pdf-n-display')?.innerText || 'NOVO';
-    const endereco = document.getElementById('input-endereco')?.value || clienteObj.endereco || '';
+    const cliente = document.getElementById('input-cliente')?.value || 'Não informado';
+    const endereco = document.getElementById('input-endereco')?.value || 'Não informado';
     const previsao = document.getElementById('input-previsao')?.value || 'A combinar';
     const dataAtual = new Date().toLocaleDateString('pt-BR');
-    const totalGeral = btn.getAttribute('data-total') || totalAttr.toFixed(2).replace('.', ',');
+    const totalGeral = btn.getAttribute('data-total') || '0,00';
 
-    // Monta bloco de dados do cliente com tudo que tiver preenchido
-    let dadosClienteHtml = `<p style="margin:0 0 6px 0; font-size:14px; font-weight:bold;">${nomeCliente}</p>`;
-    if (clienteObj.documento) dadosClienteHtml += `<p style="margin:3px 0; font-size:12px;"><strong>CPF/CNPJ:</strong> ${clienteObj.documento}</p>`;
-    if (clienteObj.telefone)  dadosClienteHtml += `<p style="margin:3px 0; font-size:12px;"><strong>Telefone:</strong> ${clienteObj.telefone}</p>`;
-    if (clienteObj.email)     dadosClienteHtml += `<p style="margin:3px 0; font-size:12px;"><strong>E-mail:</strong> ${clienteObj.email}</p>`;
-    if (endereco)             dadosClienteHtml += `<p style="margin:3px 0; font-size:12px;"><strong>Endereço:</strong> ${endereco}</p>`;
-    if (clienteObj.cep)       dadosClienteHtml += `<p style="margin:3px 0; font-size:12px;"><strong>CEP:</strong> ${clienteObj.cep}</p>`;
-    dadosClienteHtml += `<p style="margin:6px 0 0 0; font-size:12px;"><strong>Previsão de Entrega:</strong> ${previsao}</p>`;
-
-    // Monta linhas dos itens
     let linhasHtml = '';
     document.querySelectorAll('#tabela-itens tr:not(#linha-adicionar)').forEach(linha => {
         const qtd = linha.querySelector('.qtd-item')?.value || '0';
@@ -689,80 +627,67 @@ async function gerarPDF() {
         let desc = '';
         if (select && select.selectedIndex >= 0) {
             const opt = select.options[select.selectedIndex];
+            // CORRIGIDO: usa data-desc ao invés de parsear o texto
             desc = opt?.dataset?.desc || opt?.text?.split(' - ')[0] || '';
         }
-        const valorUnit = linha.querySelector('.valor-item')?.value || '';
         const total = linha.querySelector('.total-linha')?.innerText || 'R$ 0,00';
         if (desc) {
             linhasHtml += `
-                <tr style="border-bottom:1px solid #ddd;">
-                    <td style="padding:8px;text-align:center;border:1px solid #ddd;">${qtd}</td>
-                    <td style="padding:8px;border:1px solid #ddd;">${desc}</td>
-                    <td style="padding:8px;text-align:right;border:1px solid #ddd;">${valorUnit}</td>
-                    <td style="padding:8px;text-align:right;font-weight:bold;border:1px solid #ddd;">${total}</td>
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${qtd}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${desc}</td>
+                    <td style="padding: 8px; text-align: right; font-weight: bold; border: 1px solid #ddd;">${total}</td>
                 </tr>`;
         }
     });
 
     const conteudo = `
-        <div style="padding:30px;font-family:Arial,sans-serif;color:#333;max-width:800px;margin:0 auto;">
-            <div style="display:flex;justify-content:space-between;border-bottom:2px solid #999;padding-bottom:12px;margin-bottom:20px;">
-                <div>
-                    <h1 style="margin:0;font-size:26px;letter-spacing:-0.5px;">MPLEÃO</h1>
-                    <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Serralheria & Vidraçaria</p>
-                </div>
-                <div style="text-align:right;">
-                    <h2 style="margin:0;font-size:18px;">PEDIDO Nº ${numeroExibicao}</h2>
-                    <p style="margin:2px 0 0 0;font-size:11px;color:#666;">Data: ${dataAtual}</p>
-                </div>
+        <div style="padding: 30px; font-family: Arial, sans-serif; color: #333; max-width: 800px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #999; padding-bottom: 10px; margin-bottom: 20px;">
+                <div><h1 style="margin: 0; font-size: 24px;">MPLEÃO</h1><p style="margin: 0; font-size: 11px; color: #666;">Serralheria & Vidraçaria</p></div>
+                <div style="text-align: right;"><h2 style="margin: 0; font-size: 18px;">PEDIDO ${numeroExibicao}</h2><p style="margin: 0; font-size: 11px; color: #666;">Data: ${dataAtual}</p></div>
             </div>
-
-            <div style="background:#f5f5f5;padding:16px 20px;border-radius:6px;margin-bottom:24px;border:1px solid #ddd;">
-                ${dadosClienteHtml}
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 25px; font-size: 13px; border: 1px solid #ddd;">
+                <p style="margin: 5px 0;"><strong>Cliente:</strong> ${cliente}</p>
+                <p style="margin: 5px 0;"><strong>Endereço:</strong> ${endereco}</p>
+                <p style="margin: 5px 0;"><strong>Previsão de Entrega:</strong> ${previsao}</p>
             </div>
-
-            <table style="width:100%;border-collapse:collapse;margin-bottom:28px;font-size:13px;border:1px solid #ddd;">
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; border: 1px solid #ddd;">
                 <thead>
-                    <tr style="background:#e0e0e0;">
-                        <th style="padding:10px;border:1px solid #ddd;width:50px;text-align:center;">Qtd</th>
-                        <th style="padding:10px;border:1px solid #ddd;">Descrição</th>
-                        <th style="padding:10px;border:1px solid #ddd;width:110px;text-align:right;">V. Unit.</th>
-                        <th style="padding:10px;border:1px solid #ddd;width:110px;text-align:right;">Total</th>
+                    <tr style="background: #e0e0e0;">
+                        <th style="padding: 10px; border: 1px solid #ddd; width: 50px; text-align: center;">Qtd</th>
+                        <th style="padding: 10px; border: 1px solid #ddd;">Descrição</th>
+                        <th style="padding: 10px; border: 1px solid #ddd; width: 120px; text-align: right;">Total</th>
                     </tr>
                 </thead>
-                <tbody>${linhasHtml}</tbody>
+                <tbody>${linhasHtml || '<tr><td colspan="3" style="padding: 20px; text-align: center; border: 1px solid #ddd; color: #666;">Nenhum item</td></tr>'}</tbody>
             </table>
-
-            <div style="text-align:right;margin-bottom:48px;">
-                <div style="display:inline-block;background:#f0f0f0;padding:15px 25px;border-radius:6px;border:1px solid #999;">
-                    <span style="font-size:11px;text-transform:uppercase;display:block;color:#666;margin-bottom:4px;">Total a Pagar</span>
-                    <strong style="font-size:24px;">R$ ${totalGeral}</strong>
+            <div style="text-align: right; margin-bottom: 50px;">
+                <div style="display: inline-block; background: #f0f0f0; padding: 15px 25px; border-radius: 5px; border: 1px solid #999;">
+                    <span style="font-size: 11px; text-transform: uppercase; display: block; color: #666;">Total a Pagar</span>
+                    <strong style="font-size: 22px;">R$ ${totalGeral}</strong>
                 </div>
             </div>
-
-            <div style="margin-top:60px;display:flex;justify-content:space-between;">
-                <div style="width:40%;border-top:1px solid #999;text-align:center;padding-top:8px;font-size:11px;color:#666;">Assinatura MPLEÃO</div>
-                <div style="width:40%;border-top:1px solid #999;text-align:center;padding-top:8px;font-size:11px;color:#666;">Assinatura do Cliente</div>
+            <div style="margin-top: 80px; display: flex; justify-content: space-between;">
+                <div style="width: 40%; border-top: 1px solid #999; text-align: center; padding-top: 8px; font-size: 11px; color: #666;">Assinatura MPLEÃO</div>
+                <div style="width: 40%; border-top: 1px solid #999; text-align: center; padding-top: 8px; font-size: 11px; color: #666;">Assinatura do Cliente</div>
             </div>
         </div>
     `;
 
     const opcoes = {
-        margin: 10,
-        filename: `Pedido_${numeroExibicao}_${nomeCliente.replace(/\s+/g,'_')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, logging: false },
+        margin: 10, filename: `Pedido_${cliente.replace(/\s+/g, '_')}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 1.5, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
     html2pdf().set(opcoes).from(conteudo).save().then(() => {
         btn.innerHTML = textoOriginal;
-        btn.disabled = false;
         Swal.fire({ icon: 'success', title: 'PDF Gerado!', timer: 2000, showConfirmButton: false });
     }).catch(err => {
         console.error("Erro no PDF:", err);
         btn.innerHTML = textoOriginal;
-        btn.disabled = false;
         Swal.fire({ icon: 'error', title: 'Erro', text: 'Erro ao gerar PDF!', confirmButtonColor: '#3b82f6' });
     });
 }
