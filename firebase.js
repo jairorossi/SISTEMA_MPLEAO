@@ -1123,10 +1123,11 @@ async function salvarPedidoAtual() {
     }
 
     const btn = document.getElementById('btn-salvar');
-    if (!btn) return;
+    if (!btn || btn.disabled) return; // evita duplo clique
 
-    const textoOriginal = btn.innerHTML;
+    // Determina o texto correto baseado no modo, nunca captura estado travado
     const id = document.getElementById('pedido-id-atual')?.value;
+    const textoOriginal = id ? '✏️ Atualizar Pedido' : '📦 Salvar Pedido';
 
     const selectCliente = document.getElementById('input-cliente');
     const nomeCliente = selectCliente ? selectCliente.value : '';
@@ -1307,9 +1308,9 @@ function atualizarTextoBotaoSalvar(modo) {
 document.addEventListener('DOMContentLoaded', function() {
     const btnSalvar = document.getElementById('btn-salvar');
     if (btnSalvar) {
-        const newBtn = btnSalvar.cloneNode(true);
-        btnSalvar.parentNode.replaceChild(newBtn, btnSalvar);
-        newBtn.addEventListener('click', salvarPedidoAtual);
+        // Remove qualquer onclick inline e adiciona listener limpo
+        btnSalvar.removeAttribute('onclick');
+        btnSalvar.addEventListener('click', salvarPedidoAtual);
         console.log('✅ Botão salvar configurado');
     }
 });
