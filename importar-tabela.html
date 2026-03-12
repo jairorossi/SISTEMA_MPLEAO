@@ -91,8 +91,11 @@
   .done-icon{font-size:56px;margin-bottom:16px;}
   .done-title{font-size:24px;font-weight:700;margin-bottom:8px;}
   .done-sub{color:var(--muted);font-size:14px;}
-  #section-upload{display:block;}
+  #section-upload{display:none;}
   #section-preview,#section-done{display:none;}
+  #loading-auth{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px;gap:16px;color:var(--muted);font-size:14px;}
+  .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
   ::-webkit-scrollbar{width:6px;height:6px;}
   ::-webkit-scrollbar-track{background:var(--bg);}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
@@ -112,6 +115,12 @@
     <div class="step" id="step2"><div class="step-num">2</div><div><div class="step-label">Enviar arquivo</div><div class="step-sub">Selecione o .xlsx preenchido</div></div></div>
     <div class="step" id="step3"><div class="step-num">3</div><div><div class="step-label">Revisar</div><div class="step-sub">Confira antes de importar</div></div></div>
     <div class="step" id="step4"><div class="step-num">4</div><div><div class="step-label">Concluído</div><div class="step-sub">Produtos no sistema</div></div></div>
+  </div>
+
+  <!-- LOADING AUTH -->
+  <div id="loading-auth">
+    <div class="spinner"></div>
+    <span>Verificando autenticação...</span>
   </div>
 
   <!-- UPLOAD -->
@@ -211,10 +220,27 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, updateDoc, doc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
 const app = initializeApp({ apiKey:"AIzaSyBb8UGRV8qcjV6-_kd7WucWhoJBKSHcUac", authDomain:"mpleaoerp.firebaseapp.com", projectId:"mpleaoerp" });
 const db = getFirestore(app);
+const auth = getAuth(app);
+
+// Redireciona para login se não estiver autenticado
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    window.location.replace('login.html');
+  } else {
+    // Libera a UI somente após confirmar autenticação
+    document.getElementById('section-upload').style.display = 'block';
+    document.getElementById('loading-auth').style.display = 'none';
+  }
+});
+
 window._db=db; window._col=collection; window._add=addDoc; window._upd=updateDoc; window._doc=doc; window._ts=serverTimestamp;
 window.buscarFirebase = async function() {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Usuário não autenticado. Faça login novamente.');
   const snap = await getDocs(collection(db,'produtos'));
   const mapa={}; let maxC=0;
   snap.forEach(d=>{ const x=d.data(); if(x.codigo_fornecedor) mapa[x.codigo_fornecedor]={id:d.id,codigo:x.codigo,valor_base:x.valor_base}; const n=parseInt(x.codigo); if(!isNaN(n)&&n>maxC) maxC=n; });
