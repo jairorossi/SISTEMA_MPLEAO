@@ -1469,6 +1469,15 @@ window.abrirPedidoParaEdicao = function(id) {
     document.getElementById('aviso-bloqueio').classList.add('hidden');
     document.getElementById('pedido-id-atual').value = pedido.id;
 
+    // Garante que o botão salvar nunca abre travado em "Salvando..."
+    const btnSalvar = document.getElementById('btn-salvar');
+    if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = '✏️ Atualizar Pedido';
+        btnSalvar.classList.remove('bg-green-600', 'hover:bg-green-700', 'opacity-50', 'cursor-not-allowed');
+        btnSalvar.classList.add('bg-blue-600', 'hover:bg-blue-700');
+    }
+
     const selectCliente = document.getElementById('input-cliente');
     if (selectCliente && pedido.cliente_nome) {
         if ($.fn.select2) {
