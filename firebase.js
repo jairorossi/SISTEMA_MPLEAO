@@ -177,11 +177,17 @@ async function liberarTodosLocksDoUsuario() {
     } catch(e) { console.warn('Erro ao liberar locks:', e); }
 }
 
-// Ao fechar a aba: limpa a flag de sessão e libera lock
-window.addEventListener('beforeunload', () => {
-    // Remove a flag de sessão desta aba — ao reabrir, vai pedir login
-    sessionStorage.removeItem('userLogged');
-    sessionStorage.removeItem('sessaoAtiva_' + _tabId);
+// Distingue F5 (reload) de fechar a aba
+// pagehide com persisted=false = aba sendo fechada de verdade
+// pagehide com persisted=true  = página indo pro bfcache (navegação normal)
+// beforeunload sozinho não distingue os dois casos
+window.addEventListener('pagehide', (e) => {
+    if (!e.persisted) {
+        // Aba/janela fechando de verdade — limpa sessão
+        sessionStorage.removeItem('userLogged');
+        sessionStorage.removeItem('sessaoAtiva_' + _tabId);
+    }
+    // F5 ou navegação: não limpa nada, sessão continua válida
 
     if (_lockAtivo) {
         try { deleteDoc(doc(db, 'locks', _lockAtivo.lockId)); } catch(e) {}
