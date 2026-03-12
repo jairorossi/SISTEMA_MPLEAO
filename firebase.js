@@ -4,7 +4,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, serverTimestamp, getDocs, doc, updateDoc, deleteDoc, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getAuth, onAuthStateChanged, signOut, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBb8UGRV8qcjV6-_kd7WucWhoJBKSHcUac",
@@ -18,9 +18,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-
-// Sessão expira ao fechar a aba/janela — usuário precisa logar novamente
-setPersistence(auth, browserSessionPersistence).catch(e => console.warn('Erro ao configurar persistência:', e));
 
 // ==========================================
 // EXPORTA FUNÇÕES DO FIREBASE PARA USO GLOBAL
@@ -42,10 +39,16 @@ window.writeBatch = writeBatch;
 let loginVerificado = false;
 
 onAuthStateChanged(auth, (user) => {
-    if (!user) {
-        window.location.replace('login.html');
+    if (!user || !sessionStorage.getItem('userLogged')) {
+        // Sem usuário Firebase OU sessionStorage limpo (aba/janela foi fechada)
+        sessionStorage.removeItem('userLogged');
+        if (user) {
+            // Firebase ainda tem token mas sessão local expirou — força logout
+            signOut(auth).then(() => window.location.replace('login.html'));
+        } else {
+            window.location.replace('login.html');
+        }
     } else {
-        sessionStorage.setItem('userLogged', 'true');
         if (!loginVerificado) {
             loginVerificado = true;
             carregarMemoriaBanco();
