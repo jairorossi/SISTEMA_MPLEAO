@@ -12,6 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="scripts.js"></script>
     <style>
         .cliente-card { background: linear-gradient(to right, #f9fafb, #ffffff); border-left: 4px solid #3b82f6; }
@@ -50,16 +51,11 @@
             <button id="btn-logistica" onclick="mostrarAba('aba-logistica')" class="text-sm md:text-base text-left p-3 rounded hover:bg-gray-600 transition">🚚 Painel de Pedidos</button>
             <button id="btn-financeiro" onclick="mostrarAba('aba-financeiro')" class="text-sm md:text-base text-left p-3 rounded hover:bg-gray-600 transition">💰 Financeiro</button>
             <div class="border-t border-gray-700 my-2"></div>
-            <a href="importar-tabela.html" class="text-sm md:text-base text-left p-3 rounded hover:bg-gray-600 transition text-gray-300 flex items-center gap-2">📥 Importar Produtos</a>
-            <a href="backup-restore.html" class="text-sm md:text-base text-left p-3 rounded hover:bg-gray-600 transition text-yellow-400 flex items-center gap-2">💾 Backup &amp; Restore</a>
+            <button onclick="window.exportarBackupRapido()" class="text-sm md:text-base text-left p-3 rounded hover:bg-gray-600 transition text-yellow-400 flex items-center gap-2">💾 Exportar Backup</button>
+            <a href="admin.html" class="text-sm md:text-base text-left p-3 rounded hover:bg-gray-600 transition text-red-400 flex items-center gap-2">🔐 Painel Admin</a>
             <button onclick="window.fazerLogout()" class="mt-auto text-sm text-left p-3 text-red-400 hover:bg-gray-800 rounded transition font-bold">🚪 Encerrar Sessão</button>
         </nav>
-        <div class="p-4 border-t border-gray-700">
-            <button onclick="window.resetCompletoSistema()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition flex items-center justify-center gap-2 text-sm">
-                ⚠️ RESET TOTAL
-            </button>
-            <p class="text-xs text-gray-500 text-center mt-2">Apaga TODOS os dados</p>
-        </div>
+
     </aside>
 
     <main class="flex-1 overflow-y-auto p-4 md:p-8">

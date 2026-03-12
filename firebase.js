@@ -74,6 +74,16 @@ onAuthStateChanged(auth, (user) => {
 
     if (!loginVerificado) {
         loginVerificado = true;
+        // Registra/atualiza o usuário na coleção 'usuarios' (para aparecer no painel admin)
+        try {
+            const userRef = doc(db, 'usuarios', user.uid);
+            const userSnap = await getDoc(userRef);
+            if (!userSnap.exists()) {
+                await setDoc(userRef, { email: user.email, uid: user.uid, admin: false, criado_em: new Date().toISOString() });
+            } else if (!userSnap.data().email) {
+                await setDoc(userRef, { email: user.email }, { merge: true });
+            }
+        } catch(e) { console.warn('Erro ao registrar usuário:', e); }
         carregarMemoriaBanco();
     }
 });
@@ -1965,6 +1975,66 @@ window.resetCompletoSistema = async function() {
     } catch (error) {
         console.error('Erro no reset:', error);
         Swal.fire({ icon: 'error', title: 'Erro', text: 'Erro ao resetar: ' + error.message, confirmButtonColor: '#3b82f6' });
+    }
+};
+
+// ==========================================
+// EXPORTAÇÃO RÁPIDA DE BACKUP (menu lateral)
+// ==========================================
+window.exportarBackupRapido = async function() {
+    const r = await Swal.fire({
+        title: '💾 Exportar Backup',
+        text: 'Isso vai baixar um arquivo Excel com todos os dados do sistema.',
+        icon: 'info', showCancelButton: true,
+        confirmButtonColor: '#3b82f6', cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Exportar', cancelButtonText: 'Cancelar'
+    });
+    if (!r.isConfirmed) return;
+
+    Swal.fire({ title: 'Gerando backup...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        if (!window.XLSX) { Swal.close(); window.location.href = 'admin.html'; return; }
+
+        const wb = window.XLSX.utils.book_new();
+        const colsDef = [
+            { key:'clientes', nome:'CLIENTES', campos:['_id','codigo','nome','telefone','documento','email','cep','endereco','nascimento','limite','observacoes'] },
+            { key:'produtos',  nome:'PRODUTOS', campos:['_id','codigo','codigo_fornecedor','descricao','categoria','fornecedor','unidade','valor_base','custo','estoque_atual'] },
+            { key:'pedidos',   nome:'PEDIDOS',  campos:['_id','numero_sequencial','status','cliente_id','cliente_nome','valor_total','condicao_pagamento','data_criacao'] },
+            { key:'parcelas',  nome:'PARCELAS', campos:['_id','pedidoId','clienteNome','valor','vencimento','status'] },
+        ];
+        const bancos = { clientes: window.bancoClientes, produtos: window.bancoProdutos, pedidos: window.bancoPedidos };
+
+        // Busca parcelas
+        const parcelasSnap = await getDocs(collection(db, 'parcelas'));
+        bancos.parcelas = parcelasSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+
+        for (const col of colsDef) {
+            const dados = bancos[col.key] || [];
+            const rows  = dados.map(d => {
+                const row = {};
+                col.campos.forEach(f => {
+                    let v = d[f];
+                    if (v && typeof v === 'object' && v.seconds) v = new Date(v.seconds * 1000).toLocaleDateString('pt-BR');
+                    else if (v && typeof v === 'object') v = JSON.stringify(v);
+                    row[f] = v ?? '';
+                });
+                return row;
+            });
+            const ws = window.XLSX.utils.json_to_sheet(rows.length ? rows : [Object.fromEntries(col.campos.map(f => [f, '']))]);
+            ws['!cols'] = col.campos.map(f => ({ wch: Math.max(f.length + 2, 14) }));
+            window.XLSX.utils.book_append_sheet(wb, ws, col.nome);
+        }
+
+        const now = new Date();
+        const stamp = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`;
+        window.XLSX.writeFile(wb, `MPLEAO_Backup_${stamp}.xlsx`);
+        Swal.fire({ icon: 'success', title: 'Backup gerado!', timer: 2000, showConfirmButton: false });
+    } catch(e) {
+        console.error('Erro no backup:', e);
+        // Fallback: redireciona para admin que tem XLSX carregado
+        Swal.close();
+        window.location.href = 'admin.html';
     }
 };
 
