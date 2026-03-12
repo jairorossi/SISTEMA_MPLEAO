@@ -38,28 +38,51 @@ window.writeBatch = writeBatch;
 // ==========================================
 let loginVerificado = false;
 
+// Gera um ID único por aba — sobrevive a F5 mas não a fechar e reabrir
+if (!sessionStorage.getItem('tabId')) {
+    sessionStorage.setItem('tabId', Date.now().toString());
+}
+const _tabId = sessionStorage.getItem('tabId');
+
+// sessionStorage sobrevive ao "continuar de onde parou" do Chrome
+// Por isso usamos uma combinação: sessionStorage + flag na memória da página
+// A flag _paginaCarregouNessaSessao é false ao abrir uma nova aba/janela
+// mas true ao fazer F5 (a variável JS sobrevive ao reload via bfcache)
+let _paginaCarregouNessaSessao = false;
+
+// Ao carregar a página: verifica se o tabId já estava registrado no sessionStorage
+// Se não estava (aba nova/navegador reaberto), força login
+const _tabAtiva = sessionStorage.getItem('sessaoAtiva_' + _tabId);
+if (!_tabAtiva) {
+    // Aba nova ou navegador reaberto — precisa logar
+    sessionStorage.clear();
+}
+
 onAuthStateChanged(auth, (user) => {
-    if (!user || !sessionStorage.getItem('userLogged')) {
-        // Sem usuário Firebase OU sessionStorage limpo (aba/janela foi fechada)
-        sessionStorage.removeItem('userLogged');
-        if (user) {
-            // Firebase ainda tem token mas sessão local expirou — força logout
-            signOut(auth).then(() => window.location.replace('login.html'));
-        } else {
-            window.location.replace('login.html');
-        }
-    } else {
-        if (!loginVerificado) {
-            loginVerificado = true;
-            carregarMemoriaBanco();
-        }
+    if (!user) {
+        window.location.replace('login.html');
+        return;
+    }
+
+    // Usuário Firebase existe — verifica se tem sessão local válida
+    if (!sessionStorage.getItem('userLogged')) {
+        // Token Firebase ainda válido mas sessão local não existe
+        // (navegador foi fechado e reaberto) — força logout
+        signOut(auth).then(() => window.location.replace('login.html'));
+        return;
+    }
+
+    if (!loginVerificado) {
+        loginVerificado = true;
+        carregarMemoriaBanco();
     }
 });
 
 window.fazerLogout = function() {
-    liberarTodosLocksDoUsuario().then(() => {
-        signOut(auth).then(() => window.location.replace('login.html'));
-    });
+    sessionStorage.removeItem('userLogged');
+    sessionStorage.removeItem('sessaoAtiva_' + _tabId);
+    liberarTodosLocksDoUsuario(); // fire and forget — não bloqueia o logout
+    signOut(auth).then(() => window.location.replace('login.html'));
 };
 
 // ==========================================
@@ -154,10 +177,13 @@ async function liberarTodosLocksDoUsuario() {
     } catch(e) { console.warn('Erro ao liberar locks:', e); }
 }
 
-// Libera lock ao fechar/sair da aba
+// Ao fechar a aba: limpa a flag de sessão e libera lock
 window.addEventListener('beforeunload', () => {
+    // Remove a flag de sessão desta aba — ao reabrir, vai pedir login
+    sessionStorage.removeItem('userLogged');
+    sessionStorage.removeItem('sessaoAtiva_' + _tabId);
+
     if (_lockAtivo) {
-        // beforeunload não suporta async — usa sendBeacon como fallback
         try { deleteDoc(doc(db, 'locks', _lockAtivo.lockId)); } catch(e) {}
         _lockAtivo = null;
     }
