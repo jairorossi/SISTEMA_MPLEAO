@@ -846,15 +846,12 @@ function bloquearCampos(bloquear) {
         }
     }
 
+    // Botão Salvar NUNCA é desabilitado pelo bloquearCampos
+    // (o usuário precisa conseguir salvar mesmo com campos bloqueados)
     const btnSalvar = document.getElementById('btn-salvar');
-    if (btnSalvar) {
-        if (bloquear) {
-            btnSalvar.setAttribute('disabled', 'disabled');
-            btnSalvar.classList.add('opacity-50', 'cursor-not-allowed');
-        } else {
-            btnSalvar.removeAttribute('disabled');
-            btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
+    if (btnSalvar && !bloquear) {
+        btnSalvar.removeAttribute('disabled');
+        btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
     }
 }
 
