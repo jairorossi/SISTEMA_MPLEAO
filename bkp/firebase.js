@@ -1300,13 +1300,13 @@ window.abrirPedidoParaEdicao = function(id) {
         document.getElementById('input-km').value = pedido.frete.distancia || '0';
         document.getElementById('input-litro').value = pedido.frete.preco_combustivel || '4.20';
         document.getElementById('input-consumo').value = pedido.frete.consumo || '9.0';
-        document.getElementById('input-pedagio').value = (pedido.frete.pedagio || 0).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
+        document.getElementById('input-pedagio').value = (pedido.frete.pedagio || 0).toFixed(2).replace('.', ',');
         if (pedido.frete.custo_combustivel) document.getElementById('custo-combustivel').innerText = pedido.frete.custo_combustivel;
         if (pedido.frete.custo_total) document.getElementById('custo-total-frete').innerText = pedido.frete.custo_total;
     }
 
     if (pedido.desconto) document.getElementById('input-desconto').value = pedido.desconto;
-    if (pedido.acrescimo) document.getElementById('input-acrescimo').value = pedido.acrescimo.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
+    if (pedido.acrescimo) document.getElementById('input-acrescimo').value = pedido.acrescimo.toFixed(2).replace('.', ',');
     if (pedido.motivo_acrescimo) document.getElementById('input-motivo-acrescimo').value = pedido.motivo_acrescimo;
 
     if (pedido.condicao_pagamento) {
@@ -1403,7 +1403,7 @@ window.editarCliente = function(id, nome, telefone, documento, endereco, cep, em
     document.getElementById('cli-endereco').value = endereco || '';
     document.getElementById('cli-email').value = email || '';
     document.getElementById('cli-nascimento').value = nascimento || '';
-    document.getElementById('cli-limite').value = limite ? parseFloat(limite).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
+    document.getElementById('cli-limite').value = limite ? parseFloat(limite).toFixed(2).replace('.', ',') : '0,00';
     document.getElementById('cli-obs').value = observacoes || '';
     document.getElementById('btn-cancelar-cliente').classList.remove('hidden');
     window.mostrarAba('aba-clientes');

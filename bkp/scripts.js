@@ -363,11 +363,11 @@ function abrirCadastroCompletoProduto(produtoId = null) {
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="text-xs font-medium">Preço de Custo (R$)</label>
-                        <input id="swal-prod-custo" class="w-full p-2 border rounded text-sm text-right" value="${produto?.custo ? produto.custo.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00'}" onkeyup="formatarValorInput(this)">
+                        <input id="swal-prod-custo" class="w-full p-2 border rounded text-sm text-right" value="${produto?.custo ? produto.custo.toFixed(2).replace('.', ',') : '0,00'}" onkeyup="formatarValorInput(this)">
                     </div>
                     <div>
                         <label class="text-xs font-medium">Preço de Venda (R$) *</label>
-                        <input id="swal-prod-valor" class="w-full p-2 border rounded text-sm text-right font-bold text-blue-600" value="${produto ? produto.valor_base.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00'}" onkeyup="formatarValorInput(this)">
+                        <input id="swal-prod-valor" class="w-full p-2 border rounded text-sm text-right font-bold text-blue-600" value="${produto ? produto.valor_base.toFixed(2).replace('.', ',') : '0,00'}" onkeyup="formatarValorInput(this)">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -501,7 +501,7 @@ function formatarValorReais(valor) {
     if (valor === undefined || valor === null) return 'R$ 0,00';
     const num = typeof valor === 'string' ? parseFloat(valor) : valor;
     if (isNaN(num)) return 'R$ 0,00';
-    return 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'R$ ' + num.toFixed(2).replace('.', ',');
 }
 
 function formatarTelefone(input) {
