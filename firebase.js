@@ -3,7 +3,7 @@
 // ==========================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp, getDocs, doc, updateDoc, deleteDoc, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, getDocs, getDoc, doc, updateDoc, deleteDoc, runTransaction, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -57,8 +57,114 @@ onAuthStateChanged(auth, (user) => {
 });
 
 window.fazerLogout = function() {
-    signOut(auth).then(() => window.location.replace('login.html'));
+    liberarTodosLocksDoUsuario().then(() => {
+        signOut(auth).then(() => window.location.replace('login.html'));
+    });
 };
+
+// ==========================================
+// SISTEMA DE LOCK PESSIMISTA
+// ==========================================
+const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutos sem atividade = lock expira
+let _lockAtivo = null; // { tipo, id, lockId }
+let _lockHeartbeatInterval = null;
+
+function nomeUsuarioAtual() {
+    const u = auth.currentUser;
+    return u ? (u.displayName || u.email || 'Usuário') : 'Usuário';
+}
+
+async function tentarAcquireLock(tipo, id) {
+    const lockId = `${tipo}_${id}`;
+    const lockRef = doc(db, 'locks', lockId);
+
+    try {
+        const snap = await getDoc(lockRef);
+        if (snap.exists()) {
+            const data = snap.data();
+            const agora = Date.now();
+            const desde = data.desde?.toMillis ? data.desde.toMillis() : agora;
+            // Verifica se o lock expirou
+            if (agora - desde < LOCK_TTL_MS) {
+                // Lock ativo de outro usuário
+                const meuEmail = auth.currentUser?.email || '';
+                if (data.usuarioEmail !== meuEmail) {
+                    const minutos = Math.floor((agora - desde) / 60000);
+                    const tempo = minutos > 0 ? `há ${minutos} min` : 'agora mesmo';
+                    return { bloqueado: true, usuario: data.usuario, tempo };
+                }
+                // É meu próprio lock — renova e continua
+            }
+        }
+
+        // Adquire ou renova o lock
+        await setDoc(lockRef, {
+            tipo,
+            id,
+            usuario: nomeUsuarioAtual(),
+            usuarioEmail: auth.currentUser?.email || '',
+            desde: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+
+        _lockAtivo = { tipo, id, lockId };
+        _iniciarHeartbeat(lockRef);
+        return { bloqueado: false };
+
+    } catch (e) {
+        console.warn('Erro ao adquirir lock:', e);
+        return { bloqueado: false }; // falha silenciosa — não bloqueia o usuário
+    }
+}
+
+function _iniciarHeartbeat(lockRef) {
+    if (_lockHeartbeatInterval) clearInterval(_lockHeartbeatInterval);
+    _lockHeartbeatInterval = setInterval(async () => {
+        try {
+            if (_lockAtivo) {
+                await updateDoc(lockRef, { updatedAt: serverTimestamp() });
+            }
+        } catch(e) { /* silencioso */ }
+    }, 2 * 60 * 1000); // renova a cada 2 min
+}
+
+async function liberarLock() {
+    if (!_lockAtivo) return;
+    try {
+        const lockRef = doc(db, 'locks', _lockAtivo.lockId);
+        const snap = await getDoc(lockRef);
+        if (snap.exists() && snap.data().usuarioEmail === auth.currentUser?.email) {
+            await deleteDoc(lockRef);
+        }
+    } catch(e) { console.warn('Erro ao liberar lock:', e); }
+    finally {
+        _lockAtivo = null;
+        if (_lockHeartbeatInterval) { clearInterval(_lockHeartbeatInterval); _lockHeartbeatInterval = null; }
+    }
+}
+
+async function liberarTodosLocksDoUsuario() {
+    try {
+        const email = auth.currentUser?.email;
+        if (!email) return;
+        const snap = await getDocs(collection(db, 'locks'));
+        const batch = writeBatch(db);
+        snap.forEach(d => { if (d.data().usuarioEmail === email) batch.delete(d.ref); });
+        await batch.commit();
+    } catch(e) { console.warn('Erro ao liberar locks:', e); }
+}
+
+// Libera lock ao fechar/sair da aba
+window.addEventListener('beforeunload', () => {
+    if (_lockAtivo) {
+        // beforeunload não suporta async — usa sendBeacon como fallback
+        try { deleteDoc(doc(db, 'locks', _lockAtivo.lockId)); } catch(e) {}
+        _lockAtivo = null;
+    }
+});
+
+window.tentarAcquireLock = tentarAcquireLock;
+window.liberarLock = liberarLock;
 
 // ==========================================
 // VARIÁVEIS GLOBAIS
@@ -1234,6 +1340,7 @@ document.getElementById('btn-salvar-cliente').addEventListener('click', async ()
         Swal.fire({ icon: 'error', title: 'Erro', text: 'Erro ao salvar cliente!', confirmButtonColor: '#3b82f6' });
     }
 
+    window.liberarLock(); // libera o lock após salvar
     ['cli-id', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -1400,7 +1507,20 @@ window.abrirPedidoParaEdicao = function(id) {
 // ==========================================
 // FUNÇÕES DE EDIÇÃO E EXCLUSÃO
 // ==========================================
-window.editarCliente = function(id, nome, telefone, documento, endereco, cep, email, nascimento, limite, observacoes) {
+window.editarCliente = async function(id, nome, telefone, documento, endereco, cep, email, nascimento, limite, observacoes) {
+    // Verifica se outro usuário está editando este cliente
+    const lock = await window.tentarAcquireLock('cliente', id);
+    if (lock.bloqueado) {
+        Swal.fire({
+            icon: 'warning',
+            title: '🔒 Registro em uso',
+            html: `O cliente <strong>${nome}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'Entendido'
+        });
+        return;
+    }
+
     document.getElementById('cli-id').value = id;
     document.getElementById('cli-nome').value = nome;
     document.getElementById('cli-telefone').value = telefone || '';
@@ -1415,7 +1535,22 @@ window.editarCliente = function(id, nome, telefone, documento, endereco, cep, em
     window.mostrarAba('aba-clientes');
 };
 
-window.editarProduto = function(id) {
+window.editarProduto = async function(id) {
+    const produto = window.bancoProdutos.find(p => p.id === id);
+    const nomeProd = produto?.descricao || 'este produto';
+
+    const lock = await window.tentarAcquireLock('produto', id);
+    if (lock.bloqueado) {
+        Swal.fire({
+            icon: 'warning',
+            title: '🔒 Registro em uso',
+            html: `O produto <strong>${nomeProd}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
+            confirmButtonColor: '#3b82f6',
+            confirmButtonText: 'Entendido'
+        });
+        return;
+    }
+
     if (typeof window.abrirCadastroCompletoProduto === 'function') {
         window.abrirCadastroCompletoProduto(id);
     }
@@ -1514,6 +1649,7 @@ window.filtrarProdutos = function(termo) {
 };
 
 window.cancelarEdicaoCliente = function() {
+    window.liberarLock(); // libera o lock do cliente
     ['cli-id', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';

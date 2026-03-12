@@ -423,6 +423,8 @@ function abrirCadastroCompletoProduto(produtoId = null) {
             };
         }
     }).then(async (result) => {
+        // Libera o lock independente de salvar ou cancelar
+        if (typeof window.liberarLock === 'function') window.liberarLock();
         if (!result.isConfirmed) return;
         try {
             if (!window.db) { Swal.fire({ icon: 'error', title: 'Erro', text: 'Firebase não disponível.', confirmButtonColor: '#3b82f6' }); return; }
