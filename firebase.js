@@ -936,6 +936,23 @@ async function carregarMemoriaBanco() {
         const prodSnap = await getDocs(collection(db, "produtos"));
         window.bancoProdutos = prodSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        // Migração silenciosa: clientes sem codigo recebem um agora
+        const clientesSemCodigo = cliSnap.docs.filter(d => !d.data().codigo);
+        if (clientesSemCodigo.length > 0) {
+            let maxCodigo = 0;
+            cliSnap.docs.forEach(d => {
+                const num = parseInt(d.data().codigo);
+                if (!isNaN(num) && num > maxCodigo) maxCodigo = num;
+            });
+            const batchMig = writeBatch(db);
+            clientesSemCodigo.forEach(d => {
+                maxCodigo++;
+                batchMig.update(d.ref, { codigo: maxCodigo.toString().padStart(4, '0') });
+            });
+            await batchMig.commit();
+            console.log(`✅ ${clientesSemCodigo.length} cliente(s) sem código receberam códigos sequenciais.`);
+        }
+
         console.log('📥 Carregando pedidos...');
         const pedSnap = await getDocs(collection(db, "pedidos"));
         window.bancoPedidos = pedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1723,6 +1740,19 @@ window.editarProduto = async function(id) {
 };
 
 window.excluirCliente = async (id) => {
+    // Bloqueia exclusão se cliente tiver pedidos vinculados
+    const pedidosVinculados = window.bancoPedidos.filter(p => p.cliente_id === id);
+    if (pedidosVinculados.length > 0) {
+        const cliente = window.bancoClientes.find(c => c.id === id);
+        Swal.fire({
+            icon: 'error',
+            title: 'Não é possível excluir',
+            html: `O cliente <strong>${cliente?.nome || ''}</strong> possui <strong>${pedidosVinculados.length} pedido(s)</strong> vinculado(s) e não pode ser excluído.<br><br>Para remover este cliente, primeiro exclua ou transfira os pedidos dele.`,
+            confirmButtonColor: '#3b82f6'
+        });
+        return;
+    }
+
     const result = await Swal.fire({
         title: 'Excluir cliente?', icon: 'warning',
         showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280',
