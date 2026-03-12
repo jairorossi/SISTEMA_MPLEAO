@@ -979,7 +979,8 @@ function renderizarTudo() {
         <tr class="border-b text-sm hover:bg-gray-50">
             <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3, '0') || 'S/N'}</td>
             <td class="p-2 border-r">${p.data_criacao ? new Date(p.data_criacao.seconds * 1000).toLocaleDateString() : '-'}</td>
-            <td class="p-2 border-r">${p.cliente_nome}</td>
+            <td class="p-2 border-r font-mono text-xs text-gray-500">${(window.bancoClientes.find(cl => cl.id === p.cliente_id)?.codigo) || '---'}</td>
+            <td class="p-2 border-r">${window.bancoClientes.find(cl => cl.id === p.cliente_id)?.nome || p.cliente_nome}</td>
             <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
             <td class="p-2 border-r">${window.formatarValorReais(p.valor_total)}</td>
             <td class="p-2 border-r">${p.condicao_pagamento || 'Vista'}</td>
@@ -1073,7 +1074,8 @@ function renderizarTabelaPedidosNoFilter(lista) {
         <tr class="border-b text-sm hover:bg-gray-50">
             <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3, '0') || 'S/N'}</td>
             <td class="p-2 border-r">${p.data_criacao ? new Date(p.data_criacao.seconds * 1000).toLocaleDateString() : '-'}</td>
-            <td class="p-2 border-r">${p.cliente_nome}</td>
+            <td class="p-2 border-r font-mono text-xs text-gray-500">${(window.bancoClientes.find(cl => cl.id === p.cliente_id)?.codigo) || '---'}</td>
+            <td class="p-2 border-r">${window.bancoClientes.find(cl => cl.id === p.cliente_id)?.nome || p.cliente_nome}</td>
             <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
             <td class="p-2 border-r">${window.formatarValorReais(p.valor_total)}</td>
             <td class="p-2 border-r">${p.condicao_pagamento || 'Vista'}</td>
@@ -1779,7 +1781,16 @@ window.excluirProduto = async (id) => {
 };
 
 window.filtrarPedidos = (t) => {
-    const f = window.bancoPedidos.filter(p => p.cliente_nome?.toLowerCase().includes(t.toLowerCase()));
+    const tl = t.toLowerCase().replace('#', '');
+    const f = window.bancoPedidos.filter(p => {
+        const cliente = window.bancoClientes.find(cl => cl.id === p.cliente_id);
+        const nomeAtual = cliente?.nome || p.cliente_nome || '';
+        const codCliente = cliente?.codigo || '';
+        const numPedido = p.numero_sequencial?.toString().padStart(3, '0') || '';
+        return nomeAtual.toLowerCase().includes(tl) ||
+               codCliente.includes(tl) ||
+               numPedido.includes(tl);
+    });
     renderizarTabelaPedidosNoFilter(f);
 };
 
