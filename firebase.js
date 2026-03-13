@@ -508,6 +508,7 @@ window.carregarDadosFinanceiros = async function() {
     const hoje = new Date();
     const mesAtual = hoje.getMonth();
     const anoAtual = hoje.getFullYear();
+    const valoresPorMes = new Array(12).fill(0);
 
     window.bancoParcelas.forEach(parcela => {
         // Ignora parcelas canceladas nos totais
@@ -526,6 +527,11 @@ window.carregarDadosFinanceiros = async function() {
                 totalVencer += valor;
             }
 
+            const diffMeses = (vencimento.getMonth() - hoje.getMonth()) +
+                (vencimento.getFullYear() - hoje.getFullYear()) * 12;
+            if (diffMeses >= 0 && diffMeses < 12) {
+                valoresPorMes[diffMeses] += valor;
+            }
 
         } else if (parcela.status === 'pago') {
             const dataPagamento = parcela.dataPagamento ? new Date(parcela.dataPagamento + 'T12:00:00') : null;
@@ -542,6 +548,7 @@ window.carregarDadosFinanceiros = async function() {
     document.getElementById('total-atrasado').innerText = window.formatarValorReais(totalAtrasado);
     document.getElementById('total-recebido-mes').innerText = window.formatarValorReais(totalRecebidoMes);
 
+<<<<<<< HEAD
     // ── Tabela de previsão de recebimento por mês/ano ──
     const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
@@ -592,6 +599,33 @@ function _renderPrevisao() {
                     <td class="p-2 text-center">${badge}</td>
                 </tr>`;
             }).join('');
+=======
+    const MESES_NOMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const maxValor = Math.max(...valoresPorMes, 1);
+    const grafico = document.getElementById('grafico-previsao');
+    if (grafico) {
+        grafico.innerHTML = '';
+        for (let i = 0; i < 12; i++) {
+            const mesIdx   = (hoje.getMonth() + i) % 12;
+            const nomeMes  = MESES_NOMES[mesIdx];
+            const valor    = valoresPorMes[i] || 0;
+            const altura   = valor > 0 ? Math.max((valor / maxValor) * 140, 4) : 0;
+            const ehAtual  = i === 0;
+            const temValor = valor > 0;
+            const cor      = ehAtual ? 'bg-blue-600' : (temValor ? 'bg-blue-400' : 'bg-gray-200');
+            const labelCor = ehAtual ? 'font-bold text-blue-700' : 'text-gray-500';
+            const col = document.createElement('div');
+            col.className = 'flex flex-col items-center justify-end h-full gap-1';
+            col.innerHTML = \`
+                <span class="text-xs \${temValor ? 'text-gray-600' : 'text-gray-300'}" style="font-size:9px;writing-mode:initial">
+                    \${temValor ? window.formatarValorReais(valor).replace('R$\u00a0','').replace('R$ ','') : ''}
+                </span>
+                <div class="\${cor} rounded-t transition-all duration-500 w-full" style="height:\${altura}px;" title="\${nomeMes}: \${window.formatarValorReais(valor)}"></div>
+                <span class="text-xs \${labelCor}" style="font-size:10px">\${nomeMes}</span>
+            \`;
+            grafico.appendChild(col);
+        }
+>>>>>>> parent of 353e6fb (update previsão orçamentaria)
     }
     const ctrl = document.getElementById('pag-previsao');
     if (ctrl) ctrl.innerHTML = _pagControles(total, _pag.previsao.pagina, 'previsao');
