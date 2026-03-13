@@ -58,7 +58,7 @@ if (!_tabAtiva) {
     sessionStorage.clear();
 }
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
     if (!user) {
         window.location.replace('login.html');
         return;
