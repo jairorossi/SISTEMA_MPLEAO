@@ -1778,7 +1778,16 @@ async function salvarPedidoAtual() {
             }
 
             const idx = window.bancoPedidos.findIndex(p => p.id === id);
-            if (idx > -1) window.bancoPedidos[idx] = { id, ...dadosPedido };
+            if (idx > -1) {
+                // Preserva campos imutáveis que não estão no dadosPedido
+                const anterior = window.bancoPedidos[idx];
+                window.bancoPedidos[idx] = {
+                    id,
+                    numero_sequencial: anterior.numero_sequencial,
+                    data_criacao:      anterior.data_criacao,
+                    ...dadosPedido
+                };
+            }
 
         } else {
             // Criação
