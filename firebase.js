@@ -257,8 +257,10 @@ async function estornarEstoque(itens) {
 // ==========================================
 window.bancoClientes = [];
 window.bancoProdutos = [];
-window.bancoPedidos = [];
+window.bancoPedidos  = [];
 window.bancoParcelas = [];
+
+const MESES_NOMES_GLOBAL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 // ==========================================
 // FUNÇÕES DE CEP
@@ -497,9 +499,6 @@ async function carregarParcelasDoFirebase() {
     }
 }
 
-    // ── Tabela de previsão de recebimento por mês/ano ──
-    const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-	
 window.carregarDadosFinanceiros = async function() {
     await carregarParcelasDoFirebase();
 
@@ -545,7 +544,8 @@ window.carregarDadosFinanceiros = async function() {
     document.getElementById('total-atrasado').innerText = window.formatarValorReais(totalAtrasado);
     document.getElementById('total-recebido-mes').innerText = window.formatarValorReais(totalRecebidoMes);
 
-
+    // ── Tabela de previsão de recebimento por mês/ano ──
+    const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
     // Agrupa parcelas pendentes por mês+ano (sem limite de 12)
     const previsaoPorMes = {};
@@ -588,7 +588,7 @@ function _renderPrevisao() {
                     ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-semibold">Mês atual</span>'
                     : '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Futuro</span>';
                 return `<tr class="border-b hover:bg-gray-50 ${rowCor}">
-                    <td class="p-2 font-medium">${MESES_NOMES[dado.mes]} / ${dado.ano}</td>
+                    <td class="p-2 font-medium">${MESES_NOMES_GLOBAL[dado.mes]} / ${dado.ano}</td>
                     <td class="p-2 text-right font-mono ${valorCor}">${window.formatarValorReais(dado.valor)}</td>
                     <td class="p-2 text-center text-gray-600">${dado.qtd} ${dado.qtd === 1 ? 'parcela' : 'parcelas'}</td>
                     <td class="p-2 text-center">${badge}</td>
@@ -1436,4 +1436,544 @@ window.exportarBackupRapido = async function() {
 // EXPORTAÇÕES GLOBAIS
 // ==========================================
 window.carregarMemoriaBanco = carregarMemoriaBanco;
+
+// ==========================================
+// NOVO PEDIDO
+// ==========================================
+window.novoPedido = function() {
+    console.log('➕ Novo pedido');
+    bloquearCampos(false);
+    document.getElementById('aviso-bloqueio').classList.add('hidden');
+    document.getElementById('pedido-id-atual').value = '';
+
+    const selectCliente = document.getElementById('input-cliente');
+    if (selectCliente) {
+        selectCliente.disabled = false;
+        if ($.fn.select2) {
+            $(selectCliente).next('.select2-container').css('pointer-events','').css('opacity','');
+            $(selectCliente).val('').trigger('change');
+        } else {
+            selectCliente.value = '';
+        }
+    }
+
+    document.getElementById('dados-cliente-container')?.classList.add('hidden');
+    document.getElementById('btn-cancelar-pedido')?.classList.add('hidden');
+
+    const tbody = document.getElementById('tabela-itens');
+    if (tbody) tbody.innerHTML = '';
+
+    ['input-km','input-litro','input-consumo','input-pedagio','input-desconto','input-acrescimo','input-motivo-acrescimo','input-parcelas','input-primeiro-vencimento','input-previsao'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    const selectCond = document.getElementById('select-condicao-pagamento');
+    if (selectCond) selectCond.value = 'Vista';
+    const selectPag = document.getElementById('select-pagamento');
+    if (selectPag) selectPag.value = '';
+    const selectStatus = document.getElementById('select-status');
+    if (selectStatus) selectStatus.value = 'Orçamento';
+
+    atualizarBotoesStatus('Orçamento');
+    atualizarBarraProgresso('Orçamento');
+
+    document.getElementById('pdf-n-display').innerText = '#---';
+
+    const btnSalvar = document.getElementById('btn-salvar');
+    if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = '💾 Salvar Pedido';
+        btnSalvar.classList.remove('opacity-50','cursor-not-allowed');
+        btnSalvar.classList.add('bg-blue-600','hover:bg-blue-700');
+        btnSalvar.classList.remove('bg-green-600','hover:bg-green-700');
+    }
+
+    window.calcularTudo?.();
+    window.mostrarAba('aba-cadastro');
+};
+
+// ==========================================
+// SALVAR PEDIDO ATUAL
+// ==========================================
+async function salvarPedidoAtual() {
+    console.log('💾 Salvando pedido...');
+
+    if (!auth.currentUser) {
+        Swal.fire({ icon: 'error', title: 'Erro', text: 'Usuário não autenticado!', confirmButtonColor: '#3b82f6' });
+        return;
+    }
+
+    const btn = document.getElementById('btn-salvar');
+    const textoOriginal = btn?.innerHTML;
+    const id = document.getElementById('pedido-id-atual')?.value;
+    const selectCliente = document.getElementById('input-cliente');
+    const nomeCliente = selectCliente ? selectCliente.value : '';
+
+    if (!nomeCliente) {
+        Swal.fire({ icon: 'warning', title: 'Cliente obrigatório', text: 'Selecione um cliente antes de salvar!', confirmButtonColor: '#3b82f6' });
+        return;
+    }
+
+    const clienteObj = window.bancoClientes.find(c => c.nome === nomeCliente);
+
+    // Coleta itens da tabela
+    const linhas = document.querySelectorAll('#tabela-itens tr[data-produto-id]');
+    const itens = [];
+    linhas.forEach(tr => {
+        const select = tr.querySelector('.produto-select');
+        const qtdEl  = tr.querySelector('.qtd-item');
+        const valEl  = tr.querySelector('.valor-item');
+        const fornEl = tr.querySelector('.forn-item');
+        if (!select?.value) return;
+        const opt = select.options[select.selectedIndex];
+        const qtd = parseFloat(qtdEl?.value?.replace(',','.')) || 1;
+        const val = parseFloat(valEl?.value?.replace(/[R$\s.]/g,'').replace(',','.')) || 0;
+        itens.push({
+            produto_id:     tr.dataset.produtoId || select.value,
+            produto_codigo: opt?.dataset?.codigo || '',
+            descricao:      opt?.text || '',
+            fornecedor:     fornEl?.value || '',
+            quantidade:     qtd,
+            valor_unitario: val
+        });
+    });
+
+    const statusAtual  = document.getElementById('select-status')?.value || 'Orçamento';
+    const condicaoPag  = document.getElementById('select-condicao-pagamento')?.value || 'Vista';
+    const primVenc     = document.getElementById('input-primeiro-vencimento')?.value || '';
+    const desconto     = parseFloat(document.getElementById('input-desconto')?.value?.replace(',','.')) || 0;
+    const acrescimo    = parseFloat(document.getElementById('input-acrescimo')?.value?.replace(',','.')) || 0;
+    const motivoAcres  = document.getElementById('input-motivo-acrescimo')?.value || '';
+
+    // Calcula valor total
+    let subtotal = itens.reduce((s, it) => s + (it.quantidade * it.valor_unitario), 0);
+    const km     = parseFloat(document.getElementById('input-km')?.value) || 0;
+    const litro  = parseFloat(document.getElementById('input-litro')?.value?.replace(',','.')) || 0;
+    const consumo= parseFloat(document.getElementById('input-consumo')?.value?.replace(',','.')) || 1;
+    const pedag  = parseFloat(document.getElementById('input-pedagio')?.value?.replace(',','.')) || 0;
+    const frete  = consumo > 0 ? ((km / consumo) * litro * 2) + pedag : 0;
+    const valorTotal = subtotal + frete - desconto + acrescimo;
+
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Salvando...'; }
+
+    try {
+        const statusAnterior = id ? (window.bancoPedidos.find(p => p.id === id)?.status || '') : '';
+
+        const dadosPedido = {
+            cliente_id:            clienteObj?.id || '',
+            cliente_nome:          nomeCliente,
+            cliente_documento:     clienteObj?.documento || '',
+            cliente_telefone:      clienteObj?.telefone || '',
+            cliente_endereco:      document.getElementById('input-endereco')?.value || clienteObj?.endereco || '',
+            status:                statusAtual,
+            itens:                 itens,
+            valor_total:           valorTotal,
+            desconto:              desconto,
+            acrescimo:             acrescimo,
+            motivo_acrescimo:      motivoAcres,
+            condicao_pagamento:    condicaoPag,
+            primeiro_vencimento:   primVenc,
+            previsao_entrega:      document.getElementById('input-previsao')?.value || '',
+            forma_pagamento:       document.getElementById('select-pagamento')?.value || '',
+        };
+
+        // Movimentação de estoque
+        const entrandoProducao  = novoStatus => novoStatus === 'Produção' && statusAnterior !== 'Produção';
+        const saindoProducao    = novoStatus => ['Pedido Cancelado','Orçamento Não Aprovado'].includes(novoStatus) && ['Produção','Em Entrega','Entregue'].includes(statusAnterior);
+
+        if (id) {
+            // Atualização
+            await updateDoc(doc(db, 'pedidos', id), dadosPedido);
+
+            if (entrandoProducao(statusAtual)) await descontarEstoque(itens);
+            if (saindoProducao(statusAtual))   await estornarEstoque(itens);
+
+            // Gera parcelas se entrou em Produção agora
+            if (entrandoProducao(statusAtual)) {
+                await cancelarParcelasDoPedido(id);
+                await gerarParcelas(id, nomeCliente, valorTotal, condicaoPag, primVenc);
+            }
+            // Cancela parcelas se pedido cancelado
+            if (['Pedido Cancelado','Orçamento Não Aprovado'].includes(statusAtual)) {
+                await cancelarParcelasDoPedido(id);
+            }
+
+            const idx = window.bancoPedidos.findIndex(p => p.id === id);
+            if (idx > -1) window.bancoPedidos[idx] = { id, ...dadosPedido };
+
+        } else {
+            // Criação
+            const numero = await obterProximoNumeroPedido();
+            dadosPedido.numero_sequencial = numero;
+            dadosPedido.data_criacao = serverTimestamp();
+            const docRef = await addDoc(collection(db, 'pedidos'), dadosPedido);
+
+            // Exibe número imediatamente
+            const numDisplay = document.getElementById('pdf-n-display');
+            if (numDisplay) numDisplay.innerText = '#' + numero.toString().padStart(3, '0');
+
+            document.getElementById('pedido-id-atual').value = docRef.id;
+
+            if (statusAtual === 'Produção') {
+                await descontarEstoque(itens);
+                await gerarParcelas(docRef.id, nomeCliente, valorTotal, condicaoPag, primVenc);
+            }
+
+            window.bancoPedidos.unshift({ id: docRef.id, ...dadosPedido, numero_sequencial: numero });
+        }
+
+        // Atualiza botão salvar para estado "editando"
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '✅ Salvo! Atualizar';
+            btn.classList.remove('bg-blue-600','hover:bg-blue-700');
+            btn.classList.add('bg-green-600','hover:bg-green-700');
+        }
+
+        renderizarTudo();
+
+        await Swal.fire({ icon: 'success', title: 'Salvo!', text: 'Pedido salvo com sucesso!', timer: 1500, showConfirmButton: false });
+
+    } catch(e) {
+        console.error('Erro ao salvar pedido:', e);
+        if (btn) { btn.disabled = false; btn.innerHTML = textoOriginal; }
+        Swal.fire({ icon: 'error', title: 'Erro', text: 'Erro ao salvar pedido: ' + e.message, confirmButtonColor: '#3b82f6' });
+    }
+}
 window.salvarPedidoAtual = salvarPedidoAtual;
+
+// ==========================================
+// ABRIR PEDIDO PARA EDIÇÃO
+// ==========================================
+window.abrirPedidoParaEdicao = function(id) {
+    const pedido = window.bancoPedidos.find(x => x.id === id);
+    if (!pedido) {
+        Swal.fire({ icon: 'error', title: 'Erro', text: 'Pedido não encontrado!', confirmButtonColor: '#3b82f6' });
+        return;
+    }
+
+    const cliente = window.bancoClientes.find(c => c.id === pedido.cliente_id);
+
+    bloquearCampos(false);
+    document.getElementById('aviso-bloqueio').classList.add('hidden');
+    document.getElementById('pedido-id-atual').value = pedido.id;
+
+    const selectCliente = document.getElementById('input-cliente');
+    if (selectCliente && pedido.cliente_nome) {
+        if ($.fn.select2) {
+            $(selectCliente).val(pedido.cliente_nome).trigger('change');
+        } else {
+            selectCliente.value = pedido.cliente_nome;
+        }
+    }
+
+    document.getElementById('pdf-n-display').innerText = '#' + (pedido.numero_sequencial?.toString().padStart(3,'0') || '???');
+
+    if (cliente) {
+        document.getElementById('cliente-telefone').innerText  = cliente.telefone || '-';
+        document.getElementById('cliente-documento').innerText = cliente.documento || '-';
+        document.getElementById('cliente-endereco').innerText  = cliente.endereco || '-';
+        document.getElementById('cliente-cep').innerText       = cliente.cep || '-';
+        document.getElementById('dados-cliente-container').classList.remove('hidden');
+        document.getElementById('input-endereco').value = pedido.cliente_endereco || cliente.endereco || '';
+    }
+
+    // Campos do pedido
+    document.getElementById('select-status').value = pedido.status || 'Orçamento';
+    document.getElementById('select-condicao-pagamento').value = pedido.condicao_pagamento || 'Vista';
+    document.getElementById('select-pagamento').value = pedido.forma_pagamento || '';
+    document.getElementById('input-primeiro-vencimento').value = pedido.primeiro_vencimento || '';
+    document.getElementById('input-previsao').value = pedido.previsao_entrega || '';
+    document.getElementById('input-desconto').value = pedido.desconto > 0 ? pedido.desconto.toFixed(2).replace('.',',') : '';
+    document.getElementById('input-acrescimo').value = pedido.acrescimo > 0 ? pedido.acrescimo.toFixed(2).replace('.',',') : '';
+    document.getElementById('input-motivo-acrescimo').value = pedido.motivo_acrescimo || '';
+
+    atualizarBotoesStatus(pedido.status || 'Orçamento');
+    atualizarBarraProgresso(pedido.status || 'Orçamento');
+
+    if (STATUS_BLOQUEADOS.includes(pedido.status)) {
+        bloquearCampos(true);
+        const aviso = document.getElementById('aviso-bloqueio');
+        const spanStatus = document.getElementById('status-bloqueio');
+        if (aviso && spanStatus) { spanStatus.innerText = pedido.status; aviso.classList.remove('hidden'); }
+    }
+
+    // Preenche itens
+    const tbody = document.getElementById('tabela-itens');
+    if (tbody) tbody.innerHTML = '';
+    if (pedido.itens?.length > 0) {
+        pedido.itens.forEach(item => {
+            window.adicionarLinha?.();
+            const linhas = document.querySelectorAll('#tabela-itens tr[data-produto-id]');
+            const tr = linhas[linhas.length - 1];
+            if (!tr) return;
+            tr.dataset.produtoId = item.produto_id || '';
+            const select = tr.querySelector('.produto-select');
+            const qtdEl  = tr.querySelector('.qtd-item');
+            const valEl  = tr.querySelector('.valor-item');
+            const fornEl = tr.querySelector('.forn-item');
+            if (select) {
+                // Adiciona option temporária se não existir
+                const opt = Array.from(select.options).find(o => o.value === item.produto_id);
+                if (!opt) {
+                    const newOpt = new Option(item.descricao, item.produto_id, true, true);
+                    newOpt.dataset.valor = item.valor_unitario;
+                    newOpt.dataset.forn  = item.fornecedor || '';
+                    select.appendChild(newOpt);
+                }
+                select.value = item.produto_id;
+                if ($.fn.select2) $(select).trigger('change');
+            }
+            if (qtdEl)  qtdEl.value  = item.quantidade;
+            if (valEl)  valEl.value  = window.formatarValorReais(item.valor_unitario);
+            if (fornEl) fornEl.value = item.fornecedor || '';
+        });
+    }
+
+    document.getElementById('btn-cancelar-pedido').classList.remove('hidden');
+
+    // Botão salvar reset
+    const btnSalvar = document.getElementById('btn-salvar');
+    if (btnSalvar) {
+        btnSalvar.disabled = false;
+        btnSalvar.innerHTML = '💾 Salvar Pedido';
+        btnSalvar.classList.remove('bg-green-600','hover:bg-green-700','opacity-50','cursor-not-allowed');
+        btnSalvar.classList.add('bg-blue-600','hover:bg-blue-700');
+    }
+
+    setTimeout(() => {
+        document.querySelectorAll('#tabela-itens .produto-select').forEach(s => {
+            if ($.fn.select2) $(s).select2({ placeholder: 'Busque um produto...', allowClear: true, width: '100%' });
+        });
+    }, 100);
+
+    window.mostrarAba('aba-cadastro');
+    setTimeout(() => window.calcularTudo?.(), 500);
+};
+
+// ==========================================
+// SALVAR CLIENTE
+// ==========================================
+window.salvarCliente = async function() {
+    const id   = document.getElementById('cli-id')?.value;
+    const nome = document.getElementById('cli-nome')?.value?.trim();
+    if (!nome) { Swal.fire({ icon:'warning', title:'Nome obrigatório', text:'Preencha o nome do cliente!', confirmButtonColor:'#3b82f6' }); return; }
+
+    const limiteRaw = document.getElementById('cli-limite')?.value?.replace(/\./g,'').replace(',','.') || '0';
+    const dados = {
+        nome,
+        telefone:   document.getElementById('cli-telefone')?.value || '',
+        documento:  document.getElementById('cli-documento')?.value || '',
+        cep:        document.getElementById('cli-cep')?.value || '',
+        endereco:   document.getElementById('cli-endereco')?.value || '',
+        email:      document.getElementById('cli-email')?.value || '',
+        nascimento: document.getElementById('cli-nascimento')?.value || '',
+        limite:     parseFloat(limiteRaw) || 0,
+        observacoes:document.getElementById('cli-obs')?.value || '',
+    };
+
+    try {
+        if (id) {
+            // Edição — preserva codigo e propaga nome se mudou
+            const clienteExistente = window.bancoClientes.find(c => c.id === id);
+            if (clienteExistente?.codigo) dados.codigo = clienteExistente.codigo;
+            const nomeAntigo = clienteExistente?.nome;
+
+            await updateDoc(doc(db, 'clientes', id), dados);
+
+            if (nomeAntigo && nomeAntigo !== nome) {
+                // Propaga novo nome para pedidos e parcelas
+                const pedidosSnap  = await getDocs(collection(db, 'pedidos'));
+                const parcelasSnap = await getDocs(collection(db, 'parcelas'));
+                const batchPed  = writeBatch(db);
+                const batchParc = writeBatch(db);
+                let temPed = false, temParc = false;
+
+                pedidosSnap.forEach(d => {
+                    if (d.data().cliente_id === id) { batchPed.update(d.ref, { cliente_nome: nome }); temPed = true; }
+                });
+                parcelasSnap.forEach(d => {
+                    const dp = d.data();
+                    if (dp.clienteNome === nomeAntigo || dp.cliente === nomeAntigo) {
+                        const upd = { clienteNome: nome };
+                        if (!dp.clienteId) upd.clienteId = id;
+                        if (!dp.clienteCodigo && clienteExistente?.codigo) upd.clienteCodigo = clienteExistente.codigo;
+                        batchParc.update(d.ref, upd); temParc = true;
+                    }
+                });
+                if (temPed)  await batchPed.commit();
+                if (temParc) await batchParc.commit();
+            }
+
+            const idx = window.bancoClientes.findIndex(c => c.id === id);
+            if (idx > -1) window.bancoClientes[idx] = { ...window.bancoClientes[idx], ...dados };
+
+        } else {
+            // Criação — gera codigo sequencial
+            const maxCod = window.bancoClientes.reduce((m, c) => Math.max(m, parseInt(c.codigo||0)), 0);
+            dados.codigo = (maxCod + 1).toString().padStart(4, '0');
+            dados.data_cadastro = serverTimestamp();
+            const ref = await addDoc(collection(db, 'clientes'), dados);
+            window.bancoClientes.push({ id: ref.id, ...dados });
+        }
+
+        window.cancelarEdicaoCliente();
+        renderizarTudo();
+        Swal.fire({ icon:'success', title:'Sucesso!', text: id ? 'Cliente atualizado!' : 'Cliente cadastrado!', timer:2000, showConfirmButton:false });
+
+    } catch(e) {
+        console.error('Erro ao salvar cliente:', e);
+        Swal.fire({ icon:'error', title:'Erro', text:'Erro ao salvar cliente: '+e.message, confirmButtonColor:'#3b82f6' });
+    }
+};
+
+// ==========================================
+// EDITAR CLIENTE
+// ==========================================
+window.editarCliente = async function(id) {
+    const clienteObj = window.bancoClientes.find(cl => cl.id === id);
+
+    const lock = await window.tentarAcquireLock('cliente', id);
+    if (lock.bloqueado) {
+        Swal.fire({ icon:'warning', title:'🔒 Registro em uso',
+            html:`O cliente <strong>${clienteObj?.nome||id}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato.`,
+            confirmButtonColor:'#3b82f6', confirmButtonText:'Entendido' });
+        return;
+    }
+
+    document.getElementById('cli-id').value          = id;
+    document.getElementById('cli-codigo').value       = clienteObj?.codigo || '';
+    document.getElementById('cli-nome').value         = clienteObj?.nome || '';
+    document.getElementById('cli-telefone').value     = clienteObj?.telefone || '';
+    document.getElementById('cli-documento').value    = clienteObj?.documento || '';
+    document.getElementById('cli-cep').value          = clienteObj?.cep || '';
+    document.getElementById('cli-endereco').value     = clienteObj?.endereco || '';
+    document.getElementById('cli-email').value        = clienteObj?.email || '';
+    document.getElementById('cli-nascimento').value   = clienteObj?.nascimento || '';
+    document.getElementById('cli-limite').value       = clienteObj?.limite ? parseFloat(clienteObj.limite).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
+    document.getElementById('cli-obs').value          = clienteObj?.observacoes || '';
+    document.getElementById('btn-cancelar-cliente').classList.remove('hidden');
+    window.mostrarAba('aba-clientes');
+};
+
+// ==========================================
+// EXCLUIR CLIENTE
+// ==========================================
+window.excluirCliente = async function(id) {
+    const pedidosVinculados = window.bancoPedidos.filter(p => p.cliente_id === id);
+    if (pedidosVinculados.length > 0) {
+        const c = window.bancoClientes.find(c => c.id === id);
+        Swal.fire({ icon:'error', title:'Não é possível excluir',
+            text:`O cliente "${c?.nome||id}" possui ${pedidosVinculados.length} pedido(s) vinculado(s). Remova os pedidos antes de excluir o cliente.`,
+            confirmButtonColor:'#3b82f6' });
+        return;
+    }
+    const c = window.bancoClientes.find(c => c.id === id);
+    const r = await Swal.fire({ icon:'warning', title:'Excluir cliente?',
+        text:`Deseja excluir "${c?.nome||id}"? Esta ação não pode ser desfeita.`,
+        showCancelButton:true, confirmButtonColor:'#dc2626', cancelButtonColor:'#6b7280',
+        confirmButtonText:'Excluir', cancelButtonText:'Cancelar' });
+    if (!r.isConfirmed) return;
+    try {
+        await deleteDoc(doc(db, 'clientes', id));
+        window.bancoClientes = window.bancoClientes.filter(c => c.id !== id);
+        renderizarTudo();
+        Swal.fire({ icon:'success', title:'Excluído!', timer:1500, showConfirmButton:false });
+    } catch(e) {
+        Swal.fire({ icon:'error', title:'Erro', text:'Erro ao excluir: '+e.message, confirmButtonColor:'#3b82f6' });
+    }
+};
+
+// ==========================================
+// SALVAR PRODUTO
+// ==========================================
+window.salvarProduto = async function(dados) {
+    // dados vem do modal de cadastro completo de produto (scripts.js)
+    if (!dados) return;
+    try {
+        const id = dados.id;
+        delete dados.id;
+        if (id) {
+            await updateDoc(doc(db, 'produtos', id), dados);
+            const idx = window.bancoProdutos.findIndex(p => p.id === id);
+            if (idx > -1) window.bancoProdutos[idx] = { id, ...dados };
+        } else {
+            const maxCod = window.bancoProdutos.reduce((m, p) => Math.max(m, parseInt(p.codigo||0)), 0);
+            dados.codigo = (maxCod + 1).toString().padStart(3, '0');
+            dados.data_cadastro = serverTimestamp();
+            const ref = await addDoc(collection(db, 'produtos'), dados);
+            window.bancoProdutos.push({ id: ref.id, ...dados });
+        }
+        renderizarTudo();
+    } catch(e) {
+        console.error('Erro ao salvar produto:', e);
+        throw e;
+    }
+};
+
+// ==========================================
+// EDITAR PRODUTO
+// ==========================================
+window.editarProduto = async function(id) {
+    const produto = window.bancoProdutos.find(p => p.id === id);
+    const nomeProd = produto?.descricao || 'este produto';
+    const lock = await window.tentarAcquireLock('produto', id);
+    if (lock.bloqueado) {
+        Swal.fire({ icon:'warning', title:'🔒 Registro em uso',
+            html:`O produto <strong>${nomeProd}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato.`,
+            confirmButtonColor:'#3b82f6', confirmButtonText:'Entendido' });
+        return;
+    }
+    if (typeof window.abrirCadastroCompletoProduto === 'function') {
+        window.abrirCadastroCompletoProduto(id);
+    }
+};
+
+// ==========================================
+// EXCLUIR PRODUTO
+// ==========================================
+window.excluirProduto = async function(id) {
+    const p = window.bancoProdutos.find(p => p.id === id);
+    const r = await Swal.fire({ icon:'warning', title:'Excluir produto?',
+        text:`Deseja excluir "${p?.descricao||id}"?`,
+        showCancelButton:true, confirmButtonColor:'#dc2626', cancelButtonColor:'#6b7280',
+        confirmButtonText:'Excluir', cancelButtonText:'Cancelar' });
+    if (!r.isConfirmed) return;
+    try {
+        await deleteDoc(doc(db, 'produtos', id));
+        window.bancoProdutos = window.bancoProdutos.filter(p => p.id !== id);
+        renderizarTudo();
+        Swal.fire({ icon:'success', title:'Excluído!', timer:1500, showConfirmButton:false });
+    } catch(e) {
+        Swal.fire({ icon:'error', title:'Erro', text:'Erro ao excluir: '+e.message, confirmButtonColor:'#3b82f6' });
+    }
+};
+
+
+
+// ==========================================
+// CANCELAR EDIÇÃO DE PEDIDO
+// ==========================================
+window.cancelarEdicao = function() {
+    window.liberarLock();
+    window.novoPedido();
+};
+
+// ==========================================
+// EVENT LISTENERS DOS BOTÕES PRINCIPAIS
+// (ligados aqui pois firebase.js é type=module e carrega após scripts.js)
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Botão salvar pedido
+    const btnSalvar = document.getElementById('btn-salvar');
+    if (btnSalvar) {
+        btnSalvar.addEventListener('click', () => window.salvarPedidoAtual());
+    }
+
+    // Botão salvar cliente
+    const btnSalvarCliente = document.getElementById('btn-salvar-cliente');
+    if (btnSalvarCliente) {
+        btnSalvarCliente.addEventListener('click', () => window.salvarCliente());
+    }
+});
