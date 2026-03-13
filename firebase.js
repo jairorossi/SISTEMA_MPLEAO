@@ -811,6 +811,68 @@ window.selecionarStatus = async function(novoStatus) {
         return;
     }
 
+    // ── BUG FIX 1: bloqueia Produção se pedido não foi salvo ou não tem itens ──
+    if (novoStatus === 'Produção') {
+        const pedidoIdAtual = document.getElementById('pedido-id-atual')?.value || '';
+        if (!pedidoIdAtual) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Pedido não salvo',
+                html: 'Salve o pedido antes de enviá-lo para Produção.',
+                confirmButtonColor: '#3b82f6'
+            });
+            atualizarBotoesStatus(statusAtual);
+            return;
+        }
+        const linhas = document.querySelectorAll('#tabela-itens tr[data-produto-id]');
+        const temItens = Array.from(linhas).some(tr => tr.querySelector('.produto-select')?.value);
+        if (!temItens) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Pedido sem itens',
+                html: 'Adicione pelo menos um produto antes de enviar para Produção.',
+                confirmButtonColor: '#3b82f6'
+            });
+            atualizarBotoesStatus(statusAtual);
+            return;
+        }
+    }
+
+    // ── BUG FIX 2: confirmação reforçada para cancelar pedido em produção ──
+    if (novoStatus === 'Pedido Cancelado' && ['Produção', 'Em Entrega'].includes(statusAtual)) {
+        const nomeCliente = document.getElementById('input-cliente')?.value || '';
+        const parcelas = window.bancoParcelas.filter(p =>
+            p.pedidoId === document.getElementById('pedido-id-atual')?.value && p.status === 'pendente'
+        );
+        const totalParcelas = parcelas.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
+        const fmt = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        const result = await Swal.fire({
+            icon: 'error',
+            title: '🚨 Pedido em Produção!',
+            html: `
+                <div style="text-align:left;font-size:14px;line-height:2">
+                    <b>Cliente:</b> ${nomeCliente}<br>
+                    <b>Status atual:</b> <span style="color:#dc2626;font-weight:bold">${statusAtual}</span><br>
+                    ${parcelas.length > 0 ? `<b>Parcelas pendentes:</b> <span style="color:#dc2626;font-weight:bold">${parcelas.length} parcela(s) — ${fmt(totalParcelas)}</span><br>` : ''}
+                    <hr style="margin:8px 0">
+                    <span style="color:#dc2626">⚠️ Cancelar irá <b>cancelar todas as parcelas financeiras</b> pendentes deste pedido.</span><br><br>
+                    <b>Tem certeza absoluta que deseja cancelar?</b>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: '🚨 Sim, cancelar pedido',
+            cancelButtonText: 'Não, manter em produção',
+            reverseButtons: true
+        });
+
+        if (!result.isConfirmed) {
+            atualizarBotoesStatus(statusAtual);
+            return;
+        }
+    }
+
     // ── VERIFICAÇÃO DE LIMITE DE CRÉDITO ao entrar em Produção ──────────
     if (novoStatus === 'Produção') {
         const nomeCliente = document.getElementById('input-cliente')?.value || '';
@@ -1180,9 +1242,9 @@ function renderizarTudo() {
 
     const tbody = document.getElementById('tabela-itens');
     if (tbody && tbody.children.length === 0) {
-        window.novoPedido();
-    } else {
-        document.querySelectorAll('#tabela-itens .produto-select').forEach(select => {
+        // Inicializa campos sem trocar de aba
+        _inicializarCamposPedido();
+    } else {        document.querySelectorAll('#tabela-itens .produto-select').forEach(select => {
             if ($.fn.select2) $(select).select2({ placeholder: "Busque um produto...", allowClear: true, width: '100%' });
         });
     }
@@ -1440,10 +1502,9 @@ window.carregarMemoriaBanco = carregarMemoriaBanco;
 // ==========================================
 // NOVO PEDIDO
 // ==========================================
-window.novoPedido = function() {
-    console.log('➕ Novo pedido');
+function _inicializarCamposPedido() {
     bloquearCampos(false);
-    document.getElementById('aviso-bloqueio').classList.add('hidden');
+    document.getElementById('aviso-bloqueio')?.classList.add('hidden');
     document.getElementById('pedido-id-atual').value = '';
 
     const selectCliente = document.getElementById('input-cliente');
@@ -1484,12 +1545,17 @@ window.novoPedido = function() {
     if (btnSalvar) {
         btnSalvar.disabled = false;
         btnSalvar.innerHTML = '💾 Salvar Pedido';
-        btnSalvar.classList.remove('opacity-50','cursor-not-allowed');
+        btnSalvar.classList.remove('opacity-50','cursor-not-allowed','bg-green-600','hover:bg-green-700');
         btnSalvar.classList.add('bg-blue-600','hover:bg-blue-700');
-        btnSalvar.classList.remove('bg-green-600','hover:bg-green-700');
     }
 
     window.calcularTudo?.();
+}
+
+// novoPedido: inicializa campos E navega para a aba de cadastro
+window.novoPedido = function() {
+    console.log('➕ Novo pedido');
+    _inicializarCamposPedido();
     window.mostrarAba('aba-cadastro');
 };
 
