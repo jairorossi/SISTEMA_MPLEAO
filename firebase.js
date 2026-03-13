@@ -372,7 +372,7 @@ window.atualizarParcelas = function() {
     }
 };
 
-async function gerarParcelas(pedidoId, clienteNome, valorTotal, condicao, primeiroVencimento) {
+async function gerarParcelas(pedidoId, numeroPedido, clienteNome, valorTotal, condicao, primeiroVencimento) {
     let numeroParcelas = 1;
 
     if (condicao === 'Vista') {
@@ -396,7 +396,8 @@ async function gerarParcelas(pedidoId, clienteNome, valorTotal, condicao, primei
         vencimento.setMonth(vencimento.getMonth() + i);
 
         const parcela = {
-            pedidoId:      pedidoId,
+            pedidoId:      pedidoId,      // Firebase ID (pode mudar em restore)
+            numeroPedido:  numeroPedido,  // nosso ID sequencial — estável entre backups
             clienteNome:   clienteNome,   // atualizado automaticamente se o nome mudar
             clienteId:     clienteId,     // vínculo permanente pelo UID do Firebase
             clienteCodigo: clienteCodigo, // vínculo permanente pelo código sequencial
@@ -420,14 +421,23 @@ async function gerarParcelas(pedidoId, clienteNome, valorTotal, condicao, primei
 // ==========================================
 // CANCELAR PARCELAS DE UM PEDIDO
 // ==========================================
-async function cancelarParcelasDoPedido(pedidoId) {
+async function cancelarParcelasDoPedido(pedidoId, numeroPedido) {
     try {
+        // Busca o numero_sequencial do pedido se não foi passado
+        if (!numeroPedido) {
+            const pedido = window.bancoPedidos.find(p => p.id === pedidoId);
+            numeroPedido = pedido?.numero_sequencial;
+        }
         const parcelasSnap = await getDocs(collection(db, "parcelas"));
         const batch = writeBatch(db);
         let contador = 0;
 
         parcelasSnap.forEach(docSnap => {
-            if (docSnap.data().pedidoId === pedidoId && docSnap.data().status === 'pendente') {
+            const dp = docSnap.data();
+            // Cancela por Firebase ID OU por numeroPedido (estável após restore)
+            const bate = dp.pedidoId === pedidoId ||
+                         (numeroPedido && dp.numeroPedido === numeroPedido);
+            if (bate && dp.status === 'pendente') {
                 batch.update(docSnap.ref, { status: 'cancelado' });
                 contador++;
             }
@@ -700,9 +710,12 @@ function _renderFinanceiro() {
             }
 
             const pedido = window.bancoPedidos.find(ped => ped.id === p.pedidoId);
-            const numeroPedido = pedido?.numero_sequencial
-                ? `#${pedido.numero_sequencial.toString().padStart(3, '0')}`
-                : p.pedidoId.substring(0, 6);
+            // Usa numeroPedido da própria parcela (estável entre backups)
+            // Fallback: busca no bancoPedidos pelo Firebase ID
+            const numSeqParcela = p.numeroPedido || pedido?.numero_sequencial;
+            const numeroPedido = numSeqParcela
+                ? `#${numSeqParcela.toString().padStart(3, '0')}`
+                : p.pedidoId?.substring(0, 6) || '---';
 
             const parcelaTexto = p.totalParcelas > 1 ? `${p.numeroParcela}/${p.totalParcelas}` : 'Única';
 
@@ -727,7 +740,7 @@ function _renderFinanceiro() {
                     ` : ''}
                     ${p.status === 'pago' ? '✅' : ''}
                     ${p.status === 'cancelado' ? '🚫' : ''}
-                    <button onclick="window.verDetalhesParcela('${p.pedidoId}')" class="text-blue-600 hover:text-blue-800" title="Ver pedido">
+                    <button onclick="window.verDetalhesParcela(${p.numeroPedido || "'" + p.pedidoId + "'"})" class="text-blue-600 hover:text-blue-800" title="Ver pedido">
                         👁️
                     </button>
                 </td>
@@ -740,10 +753,15 @@ function _renderFinanceiro() {
     if (ctrl) ctrl.innerHTML = _pagControles(total, _pag.financeiro.pagina, 'financeiro');
 }
 
-window.verDetalhesParcela = function(pedidoId) {
-    const pedido = window.bancoPedidos.find(p => p.id === pedidoId);
+window.verDetalhesParcela = function(pedidoIdOuNumero) {
+    // Aceita Firebase ID ou numero_sequencial (mais estável entre backups)
+    let pedido = window.bancoPedidos.find(p => p.id === pedidoIdOuNumero);
+    if (!pedido && !isNaN(pedidoIdOuNumero)) {
+        pedido = window.bancoPedidos.find(p => p.numero_sequencial === Number(pedidoIdOuNumero));
+    }
+    const firebaseId = pedido?.id || pedidoIdOuNumero;
     if (pedido) {
-        window.abrirPedidoParaEdicao(pedidoId);
+        window.abrirPedidoParaEdicao(firebaseId);
     } else {
         Swal.fire({
             icon: 'error',
@@ -1325,8 +1343,8 @@ function _renderPedidos() {
         <tr class="border-b text-sm hover:bg-gray-50">
             <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3,'0') || 'S/N'}</td>
             <td class="p-2 border-r">${_formatarDataPedido(p.data_criacao)}</td>
-            <td class="p-2 border-r font-mono text-xs text-gray-500">${window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.codigo||'---'}</td>
-            <td class="p-2 border-r">${window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.nome||p.cliente_nome}</td>
+            <td class="p-2 border-r font-mono text-xs text-gray-500">${p.cliente_codigo || window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.codigo || '---'}</td>
+            <td class="p-2 border-r">${(p.cliente_codigo ? window.bancoClientes.find(cl=>cl.codigo===p.cliente_codigo)?.nome : null) || window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.nome || p.cliente_nome}</td>
             <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
             <td class="p-2 border-r">${window.formatarValorReais(p.valor_total)}</td>
             <td class="p-2 border-r">${p.condicao_pagamento||'Vista'}</td>
@@ -1523,8 +1541,8 @@ window.exportarBackupRapido = async function() {
         const colsDef = [
             { key:'clientes', nome:'CLIENTES', campos:['_id','codigo','nome','telefone','documento','email','cep','endereco','nascimento','limite','observacoes'] },
             { key:'produtos',  nome:'PRODUTOS', campos:['_id','codigo','codigo_fornecedor','descricao','categoria','fornecedor','unidade','valor_base','custo','estoque_atual'] },
-            { key:'pedidos',   nome:'PEDIDOS',  campos:['_id','numero_sequencial','status','cliente_id','cliente_nome','valor_total','condicao_pagamento','data_criacao'] },
-            { key:'parcelas',  nome:'PARCELAS', campos:['_id','pedidoId','clienteNome','clienteId','clienteCodigo','valor','vencimento','status','numeroParcela','totalParcelas','dataCriacao','dataPagamento'] },
+            { key:'pedidos',   nome:'PEDIDOS',  campos:['_id','numero_sequencial','status','cliente_codigo','cliente_id','cliente_nome','valor_total','condicao_pagamento','data_criacao'] },
+            { key:'parcelas',  nome:'PARCELAS', campos:['_id','numeroPedido','pedidoId','clienteNome','clienteCodigo','clienteId','valor','vencimento','status','numeroParcela','totalParcelas','dataCriacao','dataPagamento'] },
         ];
         const bancos = { clientes: window.bancoClientes, produtos: window.bancoProdutos, pedidos: window.bancoPedidos };
 
@@ -1719,7 +1737,8 @@ async function salvarPedidoAtual() {
         const statusAnterior = id ? (window.bancoPedidos.find(p => p.id === id)?.status || '') : '';
 
         const dadosPedido = {
-            cliente_id:            clienteObj?.id || '',
+            cliente_id:            clienteObj?.id     || '',
+            cliente_codigo:        clienteObj?.codigo || '',
             cliente_nome:          nomeCliente,
             cliente_documento:     clienteObj?.documento || '',
             cliente_telefone:      clienteObj?.telefone || '',
@@ -1748,13 +1767,14 @@ async function salvarPedidoAtual() {
             if (saindoProducao(statusAtual))   await estornarEstoque(itens);
 
             // Gera parcelas se entrou em Produção agora
+            const numSeqAtual = window.bancoPedidos.find(p => p.id === id)?.numero_sequencial;
             if (entrandoProducao(statusAtual)) {
-                await cancelarParcelasDoPedido(id);
-                await gerarParcelas(id, nomeCliente, valorTotal, condicaoPag, primVenc);
+                await cancelarParcelasDoPedido(id, numSeqAtual);
+                await gerarParcelas(id, numSeqAtual, nomeCliente, valorTotal, condicaoPag, primVenc);
             }
             // Cancela parcelas se pedido cancelado
             if (['Pedido Cancelado','Orçamento Não Aprovado'].includes(statusAtual)) {
-                await cancelarParcelasDoPedido(id);
+                await cancelarParcelasDoPedido(id, numSeqAtual);
             }
 
             const idx = window.bancoPedidos.findIndex(p => p.id === id);
@@ -1775,7 +1795,7 @@ async function salvarPedidoAtual() {
 
             if (statusAtual === 'Produção') {
                 await descontarEstoque(itens);
-                await gerarParcelas(docRef.id, nomeCliente, valorTotal, condicaoPag, primVenc);
+                await gerarParcelas(docRef.id, numero, nomeCliente, valorTotal, condicaoPag, primVenc);
             }
 
             window.bancoPedidos.unshift({ id: docRef.id, ...dadosPedido, numero_sequencial: numero });
@@ -1818,11 +1838,21 @@ window.abrirPedidoParaEdicao = function(id) {
     document.getElementById('pedido-id-atual').value = pedido.id;
 
     const selectCliente = document.getElementById('input-cliente');
-    if (selectCliente && pedido.cliente_nome) {
-        if ($.fn.select2) {
-            $(selectCliente).val(pedido.cliente_nome).trigger('change');
+    if (selectCliente) {
+        // Resolve cliente: por codigo (estável) > por id > por nome
+        let valorCliente = '';
+        if (pedido.cliente_codigo) {
+            const cli = window.bancoClientes.find(c => c.codigo === pedido.cliente_codigo);
+            valorCliente = cli?.nome || pedido.cliente_nome || '';
+        } else if (pedido.cliente_id) {
+            const cli = window.bancoClientes.find(c => c.id === pedido.cliente_id);
+            valorCliente = cli?.nome || pedido.cliente_nome || '';
         } else {
-            selectCliente.value = pedido.cliente_nome;
+            valorCliente = pedido.cliente_nome || '';
+        }
+        if (valorCliente) {
+            if ($.fn.select2) $(selectCliente).val(valorCliente).trigger('change');
+            else selectCliente.value = valorCliente;
         }
     }
 

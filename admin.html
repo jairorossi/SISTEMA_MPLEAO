@@ -436,8 +436,8 @@ window.exportarBackup = async function() {
   const cols = [
     { key:'clientes', nome:'CLIENTES', campos:['_id','codigo','nome','telefone','documento','email','cep','endereco','nascimento','limite','observacoes','data_cadastro'] },
     { key:'produtos',  nome:'PRODUTOS', campos:['_id','codigo','codigo_fornecedor','descricao','categoria','cor','fornecedor','unidade','marca','valor_base','custo','estoque_atual','estoque_minimo','observacoes','data_cadastro'] },
-    { key:'pedidos',   nome:'PEDIDOS',  campos:['_id','numero_sequencial','status','cliente_id','cliente_nome','cliente_documento','cliente_telefone','cliente_endereco','valor_total','desconto','acrescimo','motivo_acrescimo','condicao_pagamento','primeiro_vencimento','data_criacao'] },
-    { key:'parcelas',  nome:'PARCELAS', campos:['_id','pedidoId','clienteNome','clienteId','clienteCodigo','valor','vencimento','status','numeroParcela','totalParcelas','dataCriacao','dataPagamento'] },
+    { key:'pedidos',   nome:'PEDIDOS',  campos:['_id','numero_sequencial','status','cliente_codigo','cliente_id','cliente_nome','cliente_documento','cliente_telefone','cliente_endereco','valor_total','desconto','acrescimo','motivo_acrescimo','condicao_pagamento','primeiro_vencimento','data_criacao'] },
+    { key:'parcelas',  nome:'PARCELAS', campos:['_id','numeroPedido','pedidoId','clienteNome','clienteCodigo','clienteId','valor','vencimento','status','numeroParcela','totalParcelas','dataCriacao','dataPagamento'] },
   ];
 
   for (let i = 0; i < cols.length; i++) {
