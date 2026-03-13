@@ -928,20 +928,8 @@ window.selecionarStatus = async function(novoStatus) {
     atualizarBotoesStatus(novoStatus);
     atualizarBarraProgresso(novoStatus);
 
-    // Bloqueia campos apenas para status operacionais (não para cancelados)
-    if (STATUS_BLOQUEADOS.includes(novoStatus)) {
-        bloquearCampos(true);
-        const aviso = document.getElementById('aviso-bloqueio');
-        const spanStatus = document.getElementById('status-bloqueio');
-        if (aviso && spanStatus) {
-            spanStatus.innerText = novoStatus;
-            aviso.classList.remove('hidden');
-        }
-    } else {
-        bloquearCampos(false);
-        const aviso = document.getElementById('aviso-bloqueio');
-        if (aviso) aviso.classList.add('hidden');
-    }
+    // Orçamento: cliente bloqueado, resto livre | qualquer outro status: tudo bloqueado
+    _aplicarBloqueioStatus(novoStatus);
 
     const clienteSelect = document.getElementById('input-cliente');
     const cliente = clienteSelect ? clienteSelect.value : '';
@@ -972,65 +960,104 @@ window.selecionarStatus = async function(novoStatus) {
     });
 };
 
-function bloquearCampos(bloquear) {
-    const campos = [
-        'input-cliente', 'input-km', 'input-litro', 'input-consumo',
-        'input-pedagio', 'input-desconto', 'input-acrescimo',
-        'input-motivo-acrescimo', 'select-pagamento',
-        'select-condicao-pagamento', 'input-parcelas',
+// nivel: false = libera tudo | 'cliente' = só trava o cliente (orçamento) | 'tudo' = trava tudo
+function bloquearCampos(nivel) {
+    const camposOrcamento = [
+        'input-km', 'input-litro', 'input-consumo', 'input-pedagio',
+        'input-desconto', 'input-acrescimo', 'input-motivo-acrescimo',
+        'select-pagamento', 'select-condicao-pagamento', 'input-parcelas',
         'input-primeiro-vencimento', 'input-previsao'
     ];
 
-    campos.forEach(id => {
-        const campo = document.getElementById(id);
-        if (campo) {
+    const _set = (id, bloquear) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (bloquear) {
+            el.setAttribute('disabled', 'disabled');
+            el.classList.add('bg-gray-100', 'cursor-not-allowed');
+        } else {
+            el.removeAttribute('disabled');
+            el.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        }
+    };
+
+    const _setBtn = (el, bloquear) => {
+        if (!el) return;
+        if (bloquear) {
+            el.setAttribute('disabled', 'disabled');
+            el.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            el.removeAttribute('disabled');
+            el.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    };
+
+    const _bloqueioSelect2Cliente = (bloquear) => {
+        if ($.fn.select2) {
+            const container = $('#input-cliente').next('.select2-container').find('.select2-selection');
             if (bloquear) {
-                campo.setAttribute('disabled', 'disabled');
-                campo.classList.add('bg-gray-100', 'cursor-not-allowed');
+                container.css({ 'pointer-events': 'none', 'background-color': '#f3f4f6', 'cursor': 'not-allowed' });
             } else {
-                campo.removeAttribute('disabled');
-                campo.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                container.css({ 'pointer-events': '', 'background-color': '', 'cursor': '' });
             }
         }
-    });
+    };
 
-    document.querySelectorAll('#tabela-itens input, #tabela-itens select').forEach(input => {
-        if (bloquear) {
-            input.setAttribute('disabled', 'disabled');
-            input.classList.add('bg-gray-100', 'cursor-not-allowed');
-        } else {
-            input.removeAttribute('disabled');
-            input.classList.remove('bg-gray-100', 'cursor-not-allowed');
-        }
-    });
+    if (nivel === false) {
+        // Libera absolutamente tudo
+        _set('input-cliente', false); _bloqueioSelect2Cliente(false);
+        camposOrcamento.forEach(id => _set(id, false));
+        document.querySelectorAll('#tabela-itens input, #tabela-itens select').forEach(el => {
+            el.removeAttribute('disabled'); el.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        });
+        document.querySelectorAll('#tabela-itens button').forEach(el => _setBtn(el, false));
+        _setBtn(document.querySelector('#linha-adicionar button'), false);
 
-    document.querySelectorAll('#tabela-itens button').forEach(btn => {
-        if (bloquear) {
-            btn.setAttribute('disabled', 'disabled');
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-        } else {
-            btn.removeAttribute('disabled');
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
-    });
+    } else if (nivel === 'cliente') {
+        // Orçamento: cliente fixo, todo o resto editável
+        _set('input-cliente', true); _bloqueioSelect2Cliente(true);
+        camposOrcamento.forEach(id => _set(id, false));
+        document.querySelectorAll('#tabela-itens input, #tabela-itens select').forEach(el => {
+            el.removeAttribute('disabled'); el.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        });
+        document.querySelectorAll('#tabela-itens button').forEach(el => _setBtn(el, false));
+        _setBtn(document.querySelector('#linha-adicionar button'), false);
 
-    const btnAdicionar = document.querySelector('#linha-adicionar button');
-    if (btnAdicionar) {
-        if (bloquear) {
-            btnAdicionar.setAttribute('disabled', 'disabled');
-            btnAdicionar.classList.add('opacity-50', 'cursor-not-allowed');
-        } else {
-            btnAdicionar.removeAttribute('disabled');
-            btnAdicionar.classList.remove('opacity-50', 'cursor-not-allowed');
-        }
+    } else if (nivel === 'tudo') {
+        // Pós-orçamento: trava tudo sem exceção
+        _set('input-cliente', true); _bloqueioSelect2Cliente(true);
+        camposOrcamento.forEach(id => _set(id, true));
+        document.querySelectorAll('#tabela-itens input, #tabela-itens select').forEach(el => {
+            el.setAttribute('disabled', 'disabled'); el.classList.add('bg-gray-100', 'cursor-not-allowed');
+        });
+        document.querySelectorAll('#tabela-itens button').forEach(el => _setBtn(el, true));
+        _setBtn(document.querySelector('#linha-adicionar button'), true);
     }
 
-    // Botão Salvar NUNCA é desabilitado pelo bloquearCampos
-    // (o usuário precisa conseguir salvar mesmo com campos bloqueados)
+    // Botão Salvar: nunca desabilitado
     const btnSalvar = document.getElementById('btn-salvar');
-    if (btnSalvar && !bloquear) {
+    if (btnSalvar) {
         btnSalvar.removeAttribute('disabled');
         btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+// Aplica o nível correto de bloqueio conforme o status e atualiza o aviso visual
+function _aplicarBloqueioStatus(status) {
+    const aviso  = document.getElementById('aviso-bloqueio');
+    const spanSt = document.getElementById('status-bloqueio');
+
+    if (status === 'Orçamento') {
+        // Pedido salvo em orçamento: cliente fixo, resto editável
+        bloquearCampos('cliente');
+        if (aviso) aviso.classList.add('hidden');
+    } else {
+        // Produção, Em Entrega, Entregue, Cancelado, Não Aprovado: tudo travado
+        bloquearCampos('tudo');
+        if (aviso && spanSt) {
+            spanSt.innerText = status;
+            aviso.classList.remove('hidden');
+        }
     }
 }
 
@@ -1722,7 +1749,7 @@ window.abrirPedidoParaEdicao = function(id) {
     const cliente = window.bancoClientes.find(c => c.id === pedido.cliente_id);
 
     bloquearCampos(false);
-    document.getElementById('aviso-bloqueio').classList.add('hidden');
+    document.getElementById('aviso-bloqueio')?.classList.add('hidden');
     document.getElementById('pedido-id-atual').value = pedido.id;
 
     const selectCliente = document.getElementById('input-cliente');
@@ -1758,12 +1785,7 @@ window.abrirPedidoParaEdicao = function(id) {
     atualizarBotoesStatus(pedido.status || 'Orçamento');
     atualizarBarraProgresso(pedido.status || 'Orçamento');
 
-    if (STATUS_BLOQUEADOS.includes(pedido.status)) {
-        bloquearCampos(true);
-        const aviso = document.getElementById('aviso-bloqueio');
-        const spanStatus = document.getElementById('status-bloqueio');
-        if (aviso && spanStatus) { spanStatus.innerText = pedido.status; aviso.classList.remove('hidden'); }
-    }
+    _aplicarBloqueioStatus(pedido.status);
 
     // Preenche itens
     const tbody = document.getElementById('tabela-itens');
