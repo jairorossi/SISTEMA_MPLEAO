@@ -1028,7 +1028,10 @@ async function carregarMemoriaBanco() {
         console.log('📥 Carregando parcelas...');
         await carregarParcelasDoFirebase();
 
-        window.bancoPedidos.sort((a, b) => (b.data_criacao?.seconds || 0) - (a.data_criacao?.seconds || 0));
+        window.bancoPedidos.sort((a, b) => {
+    const toMs = d => d?.seconds ? d.seconds * 1000 : (d ? new Date(d).getTime() : 0);
+    return toMs(b.data_criacao) - toMs(a.data_criacao);
+});
 
         renderizarTudo();
     } catch (e) {
@@ -1046,7 +1049,7 @@ function renderizarTudo() {
     document.getElementById('tabela-pedidos').innerHTML = window.bancoPedidos.map(p => `
         <tr class="border-b text-sm hover:bg-gray-50">
             <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3, '0') || 'S/N'}</td>
-            <td class="p-2 border-r">${p.data_criacao ? new Date(p.data_criacao.seconds * 1000).toLocaleDateString() : '-'}</td>
+            <td class="p-2 border-r">${p.data_criacao ? (p.data_criacao?.seconds ? new Date(p.data_criacao.seconds * 1000) : new Date(p.data_criacao)).toLocaleDateString('pt-BR') : '-'}</td>
             <td class="p-2 border-r font-mono text-xs text-gray-500">${(window.bancoClientes.find(cl => cl.id === p.cliente_id)?.codigo) || '---'}</td>
             <td class="p-2 border-r">${window.bancoClientes.find(cl => cl.id === p.cliente_id)?.nome || p.cliente_nome}</td>
             <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
@@ -1141,7 +1144,7 @@ function renderizarTabelaPedidosNoFilter(lista) {
     document.getElementById('tabela-pedidos').innerHTML = lista.map(p => `
         <tr class="border-b text-sm hover:bg-gray-50">
             <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3, '0') || 'S/N'}</td>
-            <td class="p-2 border-r">${p.data_criacao ? new Date(p.data_criacao.seconds * 1000).toLocaleDateString() : '-'}</td>
+            <td class="p-2 border-r">${p.data_criacao ? (p.data_criacao?.seconds ? new Date(p.data_criacao.seconds * 1000) : new Date(p.data_criacao)).toLocaleDateString('pt-BR') : '-'}</td>
             <td class="p-2 border-r font-mono text-xs text-gray-500">${(window.bancoClientes.find(cl => cl.id === p.cliente_id)?.codigo) || '---'}</td>
             <td class="p-2 border-r">${window.bancoClientes.find(cl => cl.id === p.cliente_id)?.nome || p.cliente_nome}</td>
             <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
