@@ -595,13 +595,12 @@ function _renderPrevisao() {
     }
     const ctrl = document.getElementById('pag-previsao');
     if (ctrl) ctrl.innerHTML = _pagControles(total, _pag.previsao.pagina, 'previsao');
-}
-
-    const selectCliente = document.getElementById('filtro-cliente-financeiro');
-    if (selectCliente) {
-        selectCliente.innerHTML = '<option value="todos">Todos os clientes</option>';
-        window.bancoClientes.forEach(c => {
-            selectCliente.innerHTML += `<option value="${c.nome}">${c.nome}</option>`;
+    // Popular select de clientes no financeiro
+    const selectClienteFin = document.getElementById('filtro-cliente-financeiro');
+    if (selectClienteFin) {
+        selectClienteFin.innerHTML = '<option value="todos">Todos os clientes</option>';
+        window.bancoClientes.forEach(cl => {
+            selectClienteFin.innerHTML += `<option value="${cl.nome}">${cl.nome}</option>`;
         });
     }
 
