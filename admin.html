@@ -276,20 +276,40 @@
   <!-- USUÁRIOS -->
   <div class="panel-wrap" id="painel-usuarios">
     <div class="panel">
-      <div class="ptitle">👤 Gerenciar Administradores</div>
-      <div class="pdesc">Usuários com <code>admin: true</code> podem acessar este painel. Todos os usuários precisam ter conta no Firebase Auth (fazer login no sistema ao menos uma vez).</div>
-      <div id="lista-usuarios" style="margin-bottom:20px;">
-        <div style="color:var(--muted);font-size:13px">Carregando usuários...</div>
-      </div>
-      <div class="warn-box">
-        <span class="box-icon">ℹ️</span>
-        <div>
-          <div class="box-title warn">Como funciona</div>
-          <div class="box-text">
-            O campo <code>admin: true</code> é verificado na coleção <code>usuarios</code> do Firestore usando o UID do usuário.<br>
-            Para adicionar um novo admin, o usuário precisa ter feito login ao menos uma vez para aparecer nesta lista.
+      <div class="ptitle">👥 Gerenciar Usuários</div>
+
+      <!-- Criar novo usuário -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">➕ Criar Novo Usuário</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;flex-wrap:wrap;">
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">E-mail</label>
+            <input type="email" id="novo-email" placeholder="usuario@email.com"
+              style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Senha temporária</label>
+            <input type="text" id="novo-senha" placeholder="mínimo 6 caracteres"
+              style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">Nível</label>
+            <select id="novo-admin" style="padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);">
+              <option value="false">Usuário</option>
+              <option value="true">Admin</option>
+            </select>
           </div>
         </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:12px;">
+          <button onclick="criarUsuario()" class="btn btn-primary" style="font-size:13px;padding:8px 18px;">✨ Criar Usuário</button>
+          <span id="msg-criar" style="font-size:12px;"></span>
+        </div>
+      </div>
+
+      <!-- Lista de usuários -->
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">Usuários cadastrados</div>
+      <div id="lista-usuarios" style="margin-bottom:20px;">
+        <div style="color:var(--muted);font-size:13px">Carregando usuários...</div>
       </div>
       <div class="btn-row"><button class="btn btn-ghost" onclick="fecharPainel('painel-usuarios')">Fechar</button></div>
     </div>
@@ -345,7 +365,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
   getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, writeBatch, addDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -398,58 +418,128 @@ async function carregarDados() {
 }
 
 // ══════════════════════════════════════════════════════════
-// USUÁRIOS ADMIN
+// USUÁRIOS
 // ══════════════════════════════════════════════════════════
 async function carregarUsuarios() {
   const snap = await getDocs(collection(db, 'usuarios'));
   const lista = document.getElementById('lista-usuarios');
   if (!lista) return;
-
   if (snap.empty) {
-    lista.innerHTML = `<div style="color:var(--muted);font-size:13px">Nenhum usuário cadastrado ainda. Usuários aparecem aqui após o primeiro login.</div>`;
+    lista.innerHTML = `<div style="color:var(--muted);font-size:13px">Nenhum usuário cadastrado ainda.</div>`;
     return;
   }
-
   lista.innerHTML = snap.docs.map(d => {
     const u = d.data();
     const isAdmin = u.admin === true;
+    const eVoce = d.id === usuarioAtual?.uid;
     return `
-      <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;flex-wrap:wrap;">
         <span style="font-size:20px">${isAdmin ? '🔐' : '👤'}</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600">${u.email || d.id}</div>
+        <div style="flex:1;min-width:160px;">
+          <div style="font-size:13px;font-weight:600">${u.email || d.id} ${eVoce ? '<span style="font-size:11px;color:var(--muted)">(você)</span>' : ''}</div>
           <div style="font-size:11px;color:var(--muted);font-family:var(--mono)">${d.id}</div>
         </div>
         <span style="font-size:11px;padding:3px 10px;border-radius:99px;font-weight:700;
           ${isAdmin ? 'background:rgba(239,68,68,.15);color:var(--danger);border:1px solid rgba(239,68,68,.3)' : 'background:var(--border);color:var(--muted)'}">
           ${isAdmin ? 'ADMIN' : 'Usuário'}
         </span>
-        ${d.id !== usuarioAtual?.uid ? `
-          <button onclick="toggleAdmin('${d.id}', ${isAdmin}, '${u.email||''}')"
+        ${!eVoce ? `
+          <button onclick="toggleAdmin('${d.id}', ${isAdmin}, '${u.email||''}')" title="${isAdmin ? 'Remover admin' : 'Tornar admin'}"
             style="background:${isAdmin ? 'rgba(239,68,68,.1)' : 'rgba(59,127,245,.1)'};
               border:1px solid ${isAdmin ? 'rgba(239,68,68,.3)' : 'rgba(59,127,245,.3)'};
               color:${isAdmin ? 'var(--danger)' : 'var(--accent)'};
-              border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans)">
-            ${isAdmin ? '✕ Remover admin' : '+ Tornar admin'}
-          </button>` : `<span style="font-size:11px;color:var(--muted)">(você)</span>`}
+              border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">
+            ${isAdmin ? '✕ Admin' : '+ Admin'}
+          </button>
+          <button onclick="resetarSenha('${u.email||''}')" title="Enviar e-mail de redefinição de senha"
+            style="background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.3);color:#ca8a04;
+              border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">
+            🔑 Reset senha
+          </button>
+          <button onclick="excluirUsuario('${d.id}', '${u.email||''}')" title="Excluir usuário"
+            style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--danger);
+              border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">
+            🗑️
+          </button>` : ''}
       </div>`;
   }).join('');
 }
 
 window.toggleAdmin = async function(uid, isAdmin, email) {
-  const acao = isAdmin ? 'remover permissão de admin de' : 'conceder permissão de admin para';
   const r = await Swal.fire({
     title: isAdmin ? 'Remover admin?' : 'Tornar admin?',
-    text: `Deseja ${acao} ${email || uid}?`,
+    text: `${isAdmin ? 'Remover permissão de admin de' : 'Conceder permissão de admin para'} ${email || uid}?`,
     icon: 'warning', showCancelButton: true,
-    confirmButtonColor: isAdmin ? '#dc2626' : '#3b7ff5',
-    cancelButtonColor: '#6b7280',
+    confirmButtonColor: isAdmin ? '#dc2626' : '#3b7ff5', cancelButtonColor: '#6b7280',
     confirmButtonText: 'Confirmar', cancelButtonText: 'Cancelar'
   });
   if (!r.isConfirmed) return;
   await setDoc(doc(db, 'usuarios', uid), { admin: !isAdmin }, { merge: true });
   await carregarUsuarios();
   Swal.fire({ icon: 'success', title: 'Atualizado!', timer: 1500, showConfirmButton: false });
+};
+
+window.resetarSenha = async function(email) {
+  if (!email) { Swal.fire({ icon: 'warning', title: 'Sem e-mail', text: 'Este usuário não tem e-mail registrado.' }); return; }
+  const r = await Swal.fire({
+    title: '🔑 Resetar senha?',
+    text: `Enviar e-mail de redefinição para ${email}?`,
+    icon: 'question', showCancelButton: true,
+    confirmButtonColor: '#ca8a04', cancelButtonColor: '#6b7280',
+    confirmButtonText: 'Enviar e-mail', cancelButtonText: 'Cancelar'
+  });
+  if (!r.isConfirmed) return;
+  try {
+    await sendPasswordResetEmail(auth, email);
+    Swal.fire({ icon: 'success', title: 'E-mail enviado!', text: `Instruções enviadas para ${email}.`, confirmButtonColor: '#3b7ff5' });
+  } catch(e) {
+    Swal.fire({ icon: 'error', title: 'Erro', text: e.message });
+  }
+};
+
+window.excluirUsuario = async function(uid, email) {
+  const r = await Swal.fire({
+    title: '🗑️ Excluir usuário?',
+    html: `Remove <b>${email || uid}</b> do sistema.<br><span style="font-size:12px;color:#9ca3af">O acesso será bloqueado imediatamente.</span>`,
+    icon: 'warning', showCancelButton: true,
+    confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280',
+    confirmButtonText: 'Excluir', cancelButtonText: 'Cancelar'
+  });
+  if (!r.isConfirmed) return;
+  try {
+    await deleteDoc(doc(db, 'usuarios', uid));
+    await carregarUsuarios();
+    Swal.fire({ icon: 'success', title: 'Removido!', timer: 2000, showConfirmButton: false });
+  } catch(e) { Swal.fire({ icon: 'error', title: 'Erro', text: e.message }); }
+};
+
+window.criarUsuario = async function() {
+  const email = document.getElementById('novo-email').value.trim();
+  const senha = document.getElementById('novo-senha').value.trim();
+  const isAdm = document.getElementById('novo-admin').value === 'true';
+  const msg   = document.getElementById('msg-criar');
+  if (!email || !email.includes('@')) { msg.innerHTML = '<span style="color:red">⚠️ Informe um e-mail válido.</span>'; return; }
+  if (!senha || senha.length < 6)     { msg.innerHTML = '<span style="color:red">⚠️ Senha deve ter ao menos 6 caracteres.</span>'; return; }
+  msg.innerHTML = '<span style="color:var(--muted)">⏳ Criando usuário...</span>';
+  try {
+    const { initializeApp, getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+    const { getAuth: getAuth2, createUserWithEmailAndPassword, signOut: signOut2 } =
+      await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+    let appSec;
+    try { appSec = getApp('sec'); } catch { appSec = initializeApp({ apiKey:"AIzaSyBb8UGRV8qcjV6-_kd7WucWhoJBKSHcUac", authDomain:"mpleaoerp.firebaseapp.com", projectId:"mpleaoerp" }, 'sec'); }
+    const authSec = getAuth2(appSec);
+    const cred = await createUserWithEmailAndPassword(authSec, email, senha);
+    await setDoc(doc(db, 'usuarios', cred.user.uid), { email, admin: isAdm, criado_em: new Date().toISOString(), criado_por: usuarioAtual?.email || '' });
+    await signOut2(authSec);
+    document.getElementById('novo-email').value = '';
+    document.getElementById('novo-senha').value = '';
+    document.getElementById('novo-admin').value = 'false';
+    msg.innerHTML = `<span style="color:var(--accent2)">✅ Usuário <b>${email}</b> criado!</span>`;
+    await carregarUsuarios();
+  } catch(e) {
+    const erros = { 'auth/email-already-in-use':'E-mail já cadastrado.', 'auth/invalid-email':'E-mail inválido.', 'auth/weak-password':'Senha muito fraca.' };
+    msg.innerHTML = `<span style="color:red">❌ ${erros[e.code] || e.message}</span>`;
+  }
 };
 
 // ══════════════════════════════════════════════════════════
