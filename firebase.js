@@ -1658,6 +1658,11 @@ async function salvarPedidoAtual() {
         });
     });
 
+    if (itens.length === 0) {
+        Swal.fire({ icon: 'warning', title: 'Pedido sem itens', text: 'Adicione pelo menos um produto antes de salvar!', confirmButtonColor: '#3b82f6' });
+        return;
+    }
+
     const statusAtual  = document.getElementById('select-status')?.value || 'Orçamento';
     const condicaoPag  = document.getElementById('select-condicao-pagamento')?.value || 'Vista';
     const primVenc     = document.getElementById('input-primeiro-vencimento')?.value || '';
