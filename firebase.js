@@ -1010,6 +1010,9 @@ function bloquearCampos(nivel) {
         document.querySelectorAll('#tabela-itens input, #tabela-itens select').forEach(el => {
             el.removeAttribute('disabled'); el.classList.remove('bg-gray-100', 'cursor-not-allowed');
         });
+        document.querySelectorAll('#tabela-itens .select2-container').forEach(el => {
+            el.style.pointerEvents = ''; el.style.opacity = ''; el.style.cursor = '';
+        });
         document.querySelectorAll('#tabela-itens button').forEach(el => _setBtn(el, false));
         _setBtn(document.querySelector('#linha-adicionar button'), false);
 
@@ -1029,6 +1032,10 @@ function bloquearCampos(nivel) {
         camposOrcamento.forEach(id => _set(id, true));
         document.querySelectorAll('#tabela-itens input, #tabela-itens select').forEach(el => {
             el.setAttribute('disabled', 'disabled'); el.classList.add('bg-gray-100', 'cursor-not-allowed');
+        });
+        // Desabilita wrappers do Select2 nos itens
+        document.querySelectorAll('#tabela-itens .select2-container').forEach(el => {
+            el.style.pointerEvents = 'none'; el.style.opacity = '0.6'; el.style.cursor = 'not-allowed';
         });
         document.querySelectorAll('#tabela-itens button').forEach(el => _setBtn(el, true));
         _setBtn(document.querySelector('#linha-adicionar button'), true);
@@ -1785,9 +1792,7 @@ window.abrirPedidoParaEdicao = function(id) {
     atualizarBotoesStatus(pedido.status || 'Orçamento');
     atualizarBarraProgresso(pedido.status || 'Orçamento');
 
-    _aplicarBloqueioStatus(pedido.status);
-
-    // Preenche itens
+    // Preenche itens (bloqueio aplicado DEPOIS para cobrir os elementos recém-criados)
     const tbody = document.getElementById('tabela-itens');
     if (tbody) tbody.innerHTML = '';
     if (pedido.itens?.length > 0) {
@@ -1802,7 +1807,6 @@ window.abrirPedidoParaEdicao = function(id) {
             const valEl  = tr.querySelector('.valor-item');
             const fornEl = tr.querySelector('.forn-item');
             if (select) {
-                // Adiciona option temporária se não existir
                 const opt = Array.from(select.options).find(o => o.value === item.produto_id);
                 if (!opt) {
                     const newOpt = new Option(item.descricao, item.produto_id, true, true);
@@ -1830,11 +1834,16 @@ window.abrirPedidoParaEdicao = function(id) {
         btnSalvar.classList.add('bg-blue-600','hover:bg-blue-700');
     }
 
+    // Aplica bloqueio APÓS preencher todos os itens — cobre selects e inputs criados dinamicamente
+    _aplicarBloqueioStatus(pedido.status);
+
     setTimeout(() => {
         document.querySelectorAll('#tabela-itens .produto-select').forEach(s => {
             if ($.fn.select2) $(s).select2({ placeholder: 'Busque um produto...', allowClear: true, width: '100%' });
         });
-    }, 100);
+        // Reaplica bloqueio após Select2 re-renderizar os elementos
+        _aplicarBloqueioStatus(pedido.status);
+    }, 150);
 
     window.mostrarAba('aba-cadastro');
     setTimeout(() => window.calcularTudo?.(), 500);
