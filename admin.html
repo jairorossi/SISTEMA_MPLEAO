@@ -160,6 +160,11 @@
       <div class="card-title">Gerenciar Usuários</div>
       <div class="card-desc">Conceder ou revogar permissão de administrador para usuários do sistema.</div>
     </div>
+    <div class="card" onclick="abrirPainel('painel-config')">
+      <span class="card-icon">⚙️</span>
+      <div class="card-title">Configurações do Sistema</div>
+      <div class="card-desc">Definir valores padrão de combustível e consumo usados no cálculo de frete.</div>
+    </div>
     <div class="card danger" onclick="abrirPainel('painel-reset')">
       <span class="card-icon">☠️</span>
       <div class="card-title">Reset Total do Sistema</div>
@@ -309,6 +314,32 @@
       </div>
     </div>
   </div>
+  <!-- CONFIG -->
+  <div class="panel-wrap" id="painel-config">
+    <div class="panel">
+      <div class="ptitle">⚙️ Configurações do Sistema</div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">
+        Valores padrão usados no cálculo de frete em todos os pedidos. Ao salvar, o sistema passa a usar esses valores em novos pedidos.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:400px;">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">⛽ Preço do Combustível (R$/L)</label>
+          <input type="number" id="cfg-litro" step="0.01" min="0" placeholder="ex: 4.20"
+            style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">⚡ Consumo do Veículo (km/L)</label>
+          <input type="number" id="cfg-consumo" step="0.1" min="0.1" placeholder="ex: 9.0"
+            style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:var(--surface);">
+        </div>
+      </div>
+      <div id="cfg-msg" style="margin-top:12px;font-size:13px;min-height:20px;"></div>
+      <div class="btn-row" style="margin-top:20px;">
+        <button class="btn btn-ghost" onclick="fecharPainel('painel-config')">Fechar</button>
+        <button class="btn btn-primary" onclick="salvarConfiguracoes()">💾 Salvar Configurações</button>
+      </div>
+    </div>
+  </div>
 
 </main>
 
@@ -316,7 +347,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import {
-  getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, writeBatch
+  getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc, writeBatch, addDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
@@ -672,11 +703,43 @@ window.abrirPainel = function(id) {
   document.querySelectorAll('.panel-wrap').forEach(p => p.classList.remove('visible'));
   const el = document.getElementById(id);
   if (el) { el.classList.add('visible'); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  if (id === 'painel-config') carregarConfiguracoes();
 };
 
 window.fecharPainel = function(id) {
   const el = document.getElementById(id);
   if (el) el.classList.remove('visible');
+};
+
+async function carregarConfiguracoes() {
+  try {
+    const snap = await getDoc(doc(db, 'configuracoes', 'frete'));
+    const msg = document.getElementById('cfg-msg');
+    if (snap.exists()) {
+      const d = snap.data();
+      document.getElementById('cfg-litro').value   = d.litro   ?? 4.20;
+      document.getElementById('cfg-consumo').value = d.consumo ?? 9.0;
+      if (msg) msg.innerHTML = '<span style="color:var(--muted)">✅ Configurações carregadas do banco.</span>';
+    } else {
+      document.getElementById('cfg-litro').value   = 4.20;
+      document.getElementById('cfg-consumo').value = 9.0;
+      if (msg) msg.innerHTML = '<span style="color:var(--muted)">ℹ️ Usando valores padrão (ainda não foram salvos).</span>';
+    }
+  } catch(e) { console.error('Erro ao carregar configs:', e); }
+}
+
+window.salvarConfiguracoes = async function() {
+  const litro   = parseFloat(document.getElementById('cfg-litro').value);
+  const consumo = parseFloat(document.getElementById('cfg-consumo').value);
+  const msg = document.getElementById('cfg-msg');
+  if (!litro || litro <= 0)   { if(msg) msg.innerHTML = '<span style="color:red">⚠️ Informe um preço de combustível válido.</span>'; return; }
+  if (!consumo || consumo <= 0) { if(msg) msg.innerHTML = '<span style="color:red">⚠️ Informe um consumo válido.</span>'; return; }
+  try {
+    await setDoc(doc(db, 'configuracoes', 'frete'), { litro, consumo });
+    if(msg) msg.innerHTML = '<span style="color:var(--accent2)">✅ Configurações salvas com sucesso!</span>';
+  } catch(e) {
+    if(msg) msg.innerHTML = '<span style="color:red">❌ Erro ao salvar: ' + e.message + '</span>';
+  }
 };
 
 // Drag & Drop no upload

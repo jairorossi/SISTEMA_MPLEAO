@@ -1202,6 +1202,19 @@ async function carregarMemoriaBanco() {
         console.log('📥 Carregando parcelas...');
         await carregarParcelasDoFirebase();
 
+        // Carrega configurações de frete e aplica nos inputs
+        try {
+            const cfgSnap = await getDoc(doc(db, 'configuracoes', 'frete'));
+            if (cfgSnap.exists()) {
+                const cfg = cfgSnap.data();
+                const elLitro   = document.getElementById('input-litro');
+                const elConsumo = document.getElementById('input-consumo');
+                if (elLitro   && cfg.litro)   elLitro.value   = cfg.litro;
+                if (elConsumo && cfg.consumo) elConsumo.value = cfg.consumo;
+                console.log('⚙️ Configs de frete carregadas:', cfg);
+            }
+        } catch(e) { console.warn('Configs de frete não encontradas, usando padrão.'); }
+
         window.bancoPedidos.sort((a, b) => {
     const toMs = d => {
         if (!d) return 0;
