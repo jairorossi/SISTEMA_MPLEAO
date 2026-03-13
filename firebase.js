@@ -559,11 +559,23 @@ window.carregarDadosFinanceiros = async function() {
     const tabelaPrevisao = document.getElementById('tabela-previsao');
     if (tabelaPrevisao) {
         const entradas = Object.entries(previsaoPorMes).sort((a,b) => a[0].localeCompare(b[0]));
-        if (entradas.length === 0) {
-            tabelaPrevisao.innerHTML = '<tr><td colspan="4" class="p-6 text-center text-gray-400">Nenhuma parcela pendente</td></tr>';
-        } else {
-            const hojeChave = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
-            tabelaPrevisao.innerHTML = entradas.map(([chave, dado]) => {
+        _pag.previsao.dados = entradas;
+        _pag.previsao.pagina = 1;
+        _renderPrevisao();
+    }
+};
+
+function _renderPrevisao() {
+    const tabelaPrevisao = document.getElementById('tabela-previsao');
+    if (!tabelaPrevisao) return;
+    const fatia = _fatiar('previsao');
+    const total = _pag.previsao.dados.length;
+    const hoje  = new Date();
+    if (total === 0) {
+        tabelaPrevisao.innerHTML = '<tr><td colspan="4" class="p-6 text-center text-gray-400">Nenhuma parcela pendente</td></tr>';
+    } else {
+        const hojeChave = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+        tabelaPrevisao.innerHTML = fatia.map(([chave, dado]) => {
                 const atrasado  = chave < hojeChave;
                 const atual     = chave === hojeChave;
                 const rowCor    = atrasado ? 'bg-red-50' : (atual ? 'bg-blue-50' : '');
@@ -580,8 +592,10 @@ window.carregarDadosFinanceiros = async function() {
                     <td class="p-2 text-center">${badge}</td>
                 </tr>`;
             }).join('');
-        }
     }
+    const ctrl = document.getElementById('pag-previsao');
+    if (ctrl) ctrl.innerHTML = _pagControles(total, _pag.previsao.pagina, 'previsao');
+}
 
     const selectCliente = document.getElementById('filtro-cliente-financeiro');
     if (selectCliente) {
@@ -628,12 +642,21 @@ window.filtrarFinanceiro = function() {
 
     parcelasFiltradas.sort((a, b) => new Date(a.vencimento) - new Date(b.vencimento));
 
+    _pag.financeiro.dados = parcelasFiltradas;
+    _pag.financeiro.pagina = 1;
+    _renderFinanceiro();
+};
+
+function _renderFinanceiro() {
+    const fatia = _fatiar('financeiro');
+    const total = _pag.financeiro.dados.length;
+    const hoje  = new Date();
     let html = '';
 
-    if (parcelasFiltradas.length === 0) {
+    if (total === 0) {
         html = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Nenhuma parcela encontrada</td></tr>';
     } else {
-        parcelasFiltradas.forEach(p => {
+        fatia.forEach(p => {
             const vencimento = new Date(p.vencimento + 'T12:00:00');
             const diasAteVencimento = Math.ceil((vencimento - hoje) / (1000 * 60 * 60 * 24));
 
@@ -712,7 +735,9 @@ window.filtrarFinanceiro = function() {
     }
 
     document.getElementById('tabela-financeiro').innerHTML = html;
-};
+    const ctrl = document.getElementById('pag-financeiro');
+    if (ctrl) ctrl.innerHTML = _pagControles(total, _pag.financeiro.pagina, 'financeiro');
+}
 
 window.verDetalhesParcela = function(pedidoId) {
     const pedido = window.bancoPedidos.find(p => p.id === pedidoId);
@@ -1068,87 +1093,88 @@ async function carregarMemoriaBanco() {
     }
 }
 
+
+// ==========================================
+// SISTEMA DE PAGINAÇÃO CENTRALIZADO
+// ==========================================
+const _pag = {
+    pedidos:    { pagina: 1, dados: [] },
+    clientes:   { pagina: 1, dados: [] },
+    produtos:   { pagina: 1, dados: [] },
+    financeiro: { pagina: 1, dados: [] },
+    previsao:   { pagina: 1, dados: [] },
+};
+const POR_PAGINA = 10;
+
+function _pagControles(total, pagAtual, chave, idContainer) {
+    const totalPags = Math.max(1, Math.ceil(total / POR_PAGINA));
+    if (totalPags <= 1) return '';
+    let btns = '';
+    // Anterior
+    btns += `<button onclick="_irPagina('${chave}',${pagAtual - 1})"
+        class="px-2 py-1 rounded border text-sm ${pagAtual <= 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 border-gray-300'}"
+        ${pagAtual <= 1 ? 'disabled' : ''}>‹</button>`;
+    // Números
+    for (let i = 1; i <= totalPags; i++) {
+        const ativo = i === pagAtual;
+        btns += `<button onclick="_irPagina('${chave}',${i})"
+            class="px-3 py-1 rounded border text-sm font-medium ${ativo ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-gray-100 border-gray-300 text-gray-700'}">${i}</button>`;
+    }
+    // Próxima
+    btns += `<button onclick="_irPagina('${chave}',${pagAtual + 1})"
+        class="px-2 py-1 rounded border text-sm ${pagAtual >= totalPags ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'hover:bg-gray-100 border-gray-300'}"
+        ${pagAtual >= totalPags ? 'disabled' : ''}>›</button>`;
+
+    const inicio = (pagAtual - 1) * POR_PAGINA + 1;
+    const fim    = Math.min(pagAtual * POR_PAGINA, total);
+    return `<div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+        <span class="text-xs text-gray-400">${inicio}–${fim} de ${total}</span>
+        <div class="flex gap-1">${btns}</div>
+    </div>`;
+}
+
+window._irPagina = function(chave, pagina) {
+    const estado = _pag[chave];
+    const total  = Math.ceil(estado.dados.length / POR_PAGINA);
+    if (pagina < 1 || pagina > total) return;
+    estado.pagina = pagina;
+    _reRenderizar(chave);
+};
+
+function _fatiar(chave) {
+    const { pagina, dados } = _pag[chave];
+    const inicio = (pagina - 1) * POR_PAGINA;
+    return dados.slice(inicio, inicio + POR_PAGINA);
+}
+
+function _reRenderizar(chave) {
+    if      (chave === 'pedidos')    _renderPedidos();
+    else if (chave === 'clientes')   _renderClientes();
+    else if (chave === 'produtos')   _renderProdutos();
+    else if (chave === 'financeiro') _renderFinanceiro();
+    else if (chave === 'previsao')   _renderPrevisao();
+}
+
 function renderizarTudo() {
-    document.getElementById('tabela-pedidos').innerHTML = window.bancoPedidos.map(p => `
-        <tr class="border-b text-sm hover:bg-gray-50">
-            <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3, '0') || 'S/N'}</td>
-            <td class="p-2 border-r">${p.data_criacao ? (p.data_criacao?.seconds ? new Date(p.data_criacao.seconds * 1000) : new Date(p.data_criacao)).toLocaleDateString('pt-BR') : '-'}</td>
-            <td class="p-2 border-r font-mono text-xs text-gray-500">${(window.bancoClientes.find(cl => cl.id === p.cliente_id)?.codigo) || '---'}</td>
-            <td class="p-2 border-r">${window.bancoClientes.find(cl => cl.id === p.cliente_id)?.nome || p.cliente_nome}</td>
-            <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
-            <td class="p-2 border-r">${window.formatarValorReais(p.valor_total)}</td>
-            <td class="p-2 border-r">${p.condicao_pagamento || 'Vista'}</td>
-            <td class="p-2 text-center">
-                <button onclick="window.abrirPedidoParaEdicao('${p.id}')" class="btn btn-dark btn-sm">
-                    👁️ Abrir
-                </button>
-            </td>
-        </tr>`).join('');
+    _pag.pedidos.dados  = window.bancoPedidos;
+    _pag.clientes.dados = window.bancoClientes;
+    _pag.produtos.dados = window.bancoProdutos;
+    _pag.pedidos.pagina = _pag.clientes.pagina = _pag.produtos.pagina = 1;
 
-    document.getElementById('lista-clientes').innerHTML = window.bancoClientes.map(c => {
-        const telefone = c.telefone || '-';
-        const endereco = c.endereco || '-';
-        const enderecoResumido = endereco.length > 30 ? endereco.substring(0, 30) + '...' : endereco;
-        const limite = c.limite ? window.formatarValorReais(c.limite) : 'R$ 0,00';
+    _renderPedidos();
+    _renderClientes();
+    _renderProdutos();
 
-        return `
-        <tr class="border-b text-sm hover:bg-gray-50">
-            <td class="p-2 border">${c.codigo || '---'}</td>
-            <td class="p-2 border">${c.nome}</td>
-            <td class="p-2 border">${telefone}</td>
-            <td class="p-2 border">${enderecoResumido}</td>
-            <td class="p-2 border">${limite}</td>
-            <td class="p-2 border">
-                <button onclick="window.editarCliente('${c.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
-                <button onclick="window.excluirCliente('${c.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
-            </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="6" class="p-4 text-center text-gray-500">Nenhum cliente encontrado</td></tr>';
-
-    document.getElementById('lista-produtos').innerHTML = window.bancoProdutos.map(p => {
-        let estoqueClass = '';
-        let estoqueText = '';
-
-        if (p.estoque_atual !== undefined) {
-            if (p.estoque_atual <= 0) {
-                estoqueClass = 'text-red-600 font-bold';
-                estoqueText = 'ESGOTADO';
-            } else if (p.estoque_minimo && p.estoque_atual <= p.estoque_minimo) {
-                estoqueClass = 'text-orange-600 font-bold';
-                estoqueText = 'BAIXO';
-            } else {
-                estoqueClass = 'text-green-600';
-                estoqueText = p.estoque_atual;
-            }
-        }
-
-        return `
-        <tr class="border-b text-sm hover:bg-gray-50">
-            <td class="p-2 border font-mono font-bold">${p.codigo || '---'}</td>
-            <td class="p-2 border">${p.descricao}</td>
-            <td class="p-2 border">${p.categoria || '-'}</td>
-            <td class="p-2 border">${p.marca || '-'}</td>
-            <td class="p-2 border font-bold">${window.formatarValorReais(p.valor_base)}</td>
-            <td class="p-2 border ${estoqueClass}">${estoqueText}</td>
-            <td class="p-2 border">
-                <button onclick="window.editarProduto('${p.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
-                <button onclick="window.excluirProduto('${p.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
-            </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-500">Nenhum produto encontrado</td></tr>';
-
+    // Select cliente no pedido
     const selectCliente = document.getElementById('input-cliente');
     if (selectCliente) {
         const currentValue = selectCliente.value;
         selectCliente.innerHTML = '<option value="">Selecione um cliente</option>';
-        window.bancoClientes.forEach(c => {
-            selectCliente.innerHTML += `<option value="${c.nome}">${c.codigo ? '[' + c.codigo + '] ' : ''}${c.nome}</option>`;
+        window.bancoClientes.forEach(cl => {
+            selectCliente.innerHTML += `<option value="${cl.nome}">${cl.codigo ? '[' + cl.codigo + '] ' : ''}${cl.nome}</option>`;
         });
         if (currentValue) selectCliente.value = currentValue;
-
-        if ($.fn.select2) {
-            $(selectCliente).select2({ placeholder: "Busque um cliente...", allowClear: true, width: '100%' });
-        }
+        if ($.fn.select2) $(selectCliente).select2({ placeholder: "Busque um cliente...", allowClear: true, width: '100%' });
     }
 
     const tbody = document.getElementById('tabela-itens');
@@ -1156,732 +1182,96 @@ function renderizarTudo() {
         window.novoPedido();
     } else {
         document.querySelectorAll('#tabela-itens .produto-select').forEach(select => {
-            if ($.fn.select2) {
-                $(select).select2({ placeholder: "Busque um produto...", allowClear: true, width: '100%' });
-            }
+            if ($.fn.select2) $(select).select2({ placeholder: "Busque um produto...", allowClear: true, width: '100%' });
         });
     }
 }
 
-function renderizarTabelaPedidosNoFilter(lista) {
-    document.getElementById('tabela-pedidos').innerHTML = lista.map(p => `
+// ── render individual pedidos ──
+function _renderPedidos() {
+    const fatia = _fatiar('pedidos');
+    const total = _pag.pedidos.dados.length;
+    const html  = fatia.map(p => `
         <tr class="border-b text-sm hover:bg-gray-50">
-            <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3, '0') || 'S/N'}</td>
-            <td class="p-2 border-r">${p.data_criacao ? (p.data_criacao?.seconds ? new Date(p.data_criacao.seconds * 1000) : new Date(p.data_criacao)).toLocaleDateString('pt-BR') : '-'}</td>
-            <td class="p-2 border-r font-mono text-xs text-gray-500">${(window.bancoClientes.find(cl => cl.id === p.cliente_id)?.codigo) || '---'}</td>
-            <td class="p-2 border-r">${window.bancoClientes.find(cl => cl.id === p.cliente_id)?.nome || p.cliente_nome}</td>
+            <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3,'0') || 'S/N'}</td>
+            <td class="p-2 border-r">${p.data_criacao ? (p.data_criacao?.seconds ? new Date(p.data_criacao.seconds*1000) : new Date(p.data_criacao)).toLocaleDateString('pt-BR') : '-'}</td>
+            <td class="p-2 border-r font-mono text-xs text-gray-500">${window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.codigo||'---'}</td>
+            <td class="p-2 border-r">${window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.nome||p.cliente_nome}</td>
             <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
             <td class="p-2 border-r">${window.formatarValorReais(p.valor_total)}</td>
-            <td class="p-2 border-r">${p.condicao_pagamento || 'Vista'}</td>
-            <td class="p-2 text-center">
-                <button onclick="window.abrirPedidoParaEdicao('${p.id}')" class="btn btn-dark btn-sm">
-                    👁️ Abrir
-                </button>
-            </td>
-        </tr>`).join('');
+            <td class="p-2 border-r">${p.condicao_pagamento||'Vista'}</td>
+            <td class="p-2 text-center"><button onclick="window.abrirPedidoParaEdicao('${p.id}')" class="btn btn-dark btn-sm">👁️ Abrir</button></td>
+        </tr>`).join('') || '<tr><td colspan="8" class="p-4 text-center text-gray-500">Nenhum pedido encontrado</td></tr>';
+
+    const wrap = document.getElementById('wrap-pedidos-pag');
+    if (wrap) wrap.innerHTML = `<table class="w-full text-sm border-collapse">
+        <thead><tr class="bg-gray-100 text-left text-xs uppercase text-gray-600">
+            <th class="p-2 border-r">Nº</th><th class="p-2 border-r">Data</th>
+            <th class="p-2 border-r">Cód.</th><th class="p-2 border-r">Cliente</th>
+            <th class="p-2 border-r">Status</th><th class="p-2 border-r">Valor</th>
+            <th class="p-2 border-r">Condição</th><th class="p-2">Ações</th>
+        </tr></thead>
+        <tbody id="tabela-pedidos">${html}</tbody>
+    </table>${_pagControles(total, _pag.pedidos.pagina, 'pedidos', 'wrap-pedidos-pag')}`;
+    else document.getElementById('tabela-pedidos').innerHTML = html;
 }
 
-// ==========================================
-// FUNÇÃO PARA NOVO PEDIDO
-// ==========================================
-window.novoPedido = function() {
-    console.log('➕ Novo pedido');
+// ── render individual clientes ──
+function _renderClientes() {
+    const fatia = _fatiar('clientes');
+    const total = _pag.clientes.dados.length;
+    const html  = fatia.map(c => {
+        const end = (c.endereco||'-'); const endR = end.length>30?end.substring(0,30)+'...':end;
+        return `<tr class="border-b text-sm hover:bg-gray-50">
+            <td class="p-2 border">${c.codigo||'---'}</td>
+            <td class="p-2 border">${c.nome}</td>
+            <td class="p-2 border">${c.telefone||'-'}</td>
+            <td class="p-2 border">${endR}</td>
+            <td class="p-2 border">${c.limite?window.formatarValorReais(c.limite):'R$ 0,00'}</td>
+            <td class="p-2 border">
+                <button onclick="window.editarCliente('${c.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
+                <button onclick="window.excluirCliente('${c.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
+            </td></tr>`;
+    }).join('') || '<tr><td colspan="6" class="p-4 text-center text-gray-500">Nenhum cliente encontrado</td></tr>';
 
-    bloquearCampos(false);
-    document.getElementById('aviso-bloqueio').classList.add('hidden');
-    document.getElementById('pedido-id-atual').value = '';
-
-    const selectCliente = document.getElementById('input-cliente');
-    if (selectCliente) {
-        selectCliente.disabled = false;
-        if ($.fn.select2) {
-            $(selectCliente).next('.select2-container').css('pointer-events','').css('opacity','');
-            $(selectCliente).val('').trigger('change');
-        } else {
-            selectCliente.value = '';
-        }
-    }
-
-    document.getElementById('input-endereco').value = '';
-    document.getElementById('dados-cliente-container').classList.add('hidden');
-    document.getElementById('input-km').value = '';
-    document.getElementById('input-litro').value = '4.20';
-    document.getElementById('input-consumo').value = '9.0';
-    document.getElementById('input-pedagio').value = '0,00';
-    document.getElementById('input-desconto').value = '0';
-    document.getElementById('input-acrescimo').value = '0,00';
-    document.getElementById('input-motivo-acrescimo').value = '';
-    document.getElementById('select-pagamento').value = 'Pix';
-    document.getElementById('select-condicao-pagamento').value = 'Vista';
-    document.getElementById('div-parcelas-personalizado').classList.add('hidden');
-    document.getElementById('input-primeiro-vencimento').value = '';
-    document.getElementById('input-previsao').value = '';
-    document.getElementById('pdf-n-display').innerText = '';
-
-    document.getElementById('custo-combustivel').innerText = 'R$ 0,00';
-    document.getElementById('custo-pedagio').innerText = 'R$ 0,00';
-    document.getElementById('custo-total-frete').innerText = 'R$ 0,00';
-    document.getElementById('display-frete-estimado').value = 'R$ 0,00';
-    document.getElementById('display-subtotal').innerText = 'Subtotal: R$ 0,00';
-    document.getElementById('display-desconto').innerText = 'Desconto: - R$ 0,00';
-    document.getElementById('display-acrescimo').innerText = 'Acréscimo: + R$ 0,00';
-    document.getElementById('display-frete-final').innerText = 'Frete: R$ 0,00';
-    document.getElementById('display-taxa-final').classList.add('hidden');
-    document.getElementById('display-total').innerText = 'Total: R$ 0,00';
-    document.getElementById('btn-gerar-pdf').setAttribute('data-total', '0,00');
-    document.getElementById('btn-cancelar-pedido').classList.add('hidden');
-
-    const btnSalvar = document.getElementById('btn-salvar');
-    btnSalvar.innerHTML = '📦 Salvar Pedido';
-    btnSalvar.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-    btnSalvar.classList.add('bg-green-600', 'hover:bg-green-700');
-
-    const selectStatus = document.getElementById('select-status');
-    if (selectStatus) selectStatus.value = 'Orçamento';
-
-    atualizarBotoesStatus('Orçamento');
-    atualizarBarraProgresso('Orçamento');
-
-    document.getElementById('tabela-itens').innerHTML = `
-        <tr>
-            <td colspan="7" class="p-4 text-center text-gray-500">
-                Nenhum item adicionado. Clique em "Adicionar Itens" para começar.
-            </td>
-        </tr>
-    `;
-
-    window.calcularTudo();
-};
-
-// ==========================================
-// FUNÇÃO PARA CANCELAR EDIÇÃO
-// ==========================================
-window.cancelarEdicao = async function() {
-    const result = await Swal.fire({
-        title: 'Cancelar edição?',
-        text: 'Todas as alterações não salvas serão perdidas.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Sim, cancelar',
-        cancelButtonText: 'Não'
-    });
-
-    if (result.isConfirmed) {
-        window.novoPedido();
-    }
-};
-
-// ==========================================
-// FUNÇÃO PARA SALVAR PEDIDO
-// ==========================================
-async function salvarPedidoAtual() {
-    console.log('💾 Salvando pedido...');
-
-    if (!auth.currentUser) {
-        Swal.fire({ icon: 'error', title: 'Erro', text: 'Usuário não autenticado!', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    const btn = document.getElementById('btn-salvar');
-    if (!btn || btn.disabled) return; // evita duplo clique
-
-    // Determina o texto correto baseado no modo, nunca captura estado travado
-    const id = document.getElementById('pedido-id-atual')?.value;
-    const textoOriginal = id ? '✏️ Atualizar Pedido' : '📦 Salvar Pedido';
-
-    const selectCliente = document.getElementById('input-cliente');
-    const nomeCliente = selectCliente ? selectCliente.value : '';
-    const cliente = window.bancoClientes.find(c => c.nome === nomeCliente);
-
-    if (!cliente) {
-        Swal.fire({ icon: 'warning', title: 'Cliente inválido', text: 'Selecione um cliente válido!', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    let pedagio = 0;
-    const pedagioInput = document.getElementById('input-pedagio')?.value;
-    if (pedagioInput) pedagio = parseFloat(pedagioInput.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
-
-    let acrescimo = 0;
-    const acrescimoInput = document.getElementById('input-acrescimo')?.value;
-    if (acrescimoInput) acrescimo = parseFloat(acrescimoInput.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
-
-    const condicaoPagamento = document.getElementById('select-condicao-pagamento')?.value || 'Vista';
-    const primeiroVencimento = document.getElementById('input-primeiro-vencimento')?.value;
-    const statusAtual = document.getElementById('select-status')?.value || 'Orçamento';
-
-    const dados = {
-        cliente_nome: nomeCliente,
-        cliente_id: cliente.id,
-        cliente_endereco: cliente.endereco || '',
-        cliente_telefone: cliente.telefone || '',
-        cliente_documento: cliente.documento || '',
-        status: statusAtual,
-        condicao_pagamento: condicaoPagamento,
-        primeiro_vencimento: primeiroVencimento,
-        valor_total: parseFloat(document.getElementById('btn-gerar-pdf')?.getAttribute('data-total')?.replace(',', '.') || '0') || 0,
-        desconto: document.getElementById('input-desconto')?.value || '0',
-        acrescimo: acrescimo,
-        motivo_acrescimo: document.getElementById('input-motivo-acrescimo')?.value || '',
-        frete: {
-            distancia: document.getElementById('input-km')?.value || '0',
-            preco_combustivel: document.getElementById('input-litro')?.value || '4.20',
-            consumo: document.getElementById('input-consumo')?.value || '9.0',
-            pedagio: pedagio,
-            custo_combustivel: document.getElementById('custo-combustivel')?.innerText || 'R$ 0,00',
-            custo_total: document.getElementById('custo-total-frete')?.innerText || 'R$ 0,00'
-        },
-        itens: []
-    };
-
-    document.querySelectorAll('#tabela-itens tr:not(#linha-adicionar)').forEach(tr => {
-        const select = tr.querySelector('.desc-item');
-        if (!select) return;
-        const selectedOption = select.options[select.selectedIndex];
-        if (!selectedOption || !selectedOption.value) return;
-
-        // Busca o produto por id (mais confiável), depois pelo value do select (que é o id)
-        const produtoId = tr.dataset.produtoId || selectedOption.value;
-        const produto = window.bancoProdutos.find(p => p.id === produtoId);
-
-        // Sem produto encontrado no banco = linha inválida, ignora
-        if (!produto) return;
-
-        // Valor unitário: lê o campo da linha (digitado ou preenchido automaticamente)
-        const valorRaw = tr.querySelector('.valor-item')?.value || '0,00';
-        const valorNumerico = parseFloat(valorRaw.replace('R$', '').trim().replace(/\./g, '').replace(',', '.')) || 0;
-
-        dados.itens.push({
-            produto_id:     produto.id,
-            produto_codigo: produto.codigo || '',
-            descricao:      produto.descricao,
-            fornecedor:     produto.fornecedor || tr.querySelector('.forn-item')?.value || '',
-            quantidade:     tr.querySelector('.qtd-item')?.value || '1',
-            valor_unitario: valorNumerico   // salva como número, não string formatada
-        });
-    });
-
-    if (dados.itens.length === 0) {
-        Swal.fire({ icon: 'warning', title: 'Sem itens', text: 'Adicione pelo menos um item ao pedido!', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    btn.innerHTML = '💾 Salvando...';
-    btn.disabled = true;
-
-    try {
-        let pedidoId = id;
-
-        // Captura status anterior para detectar transições que afetam estoque
-        let statusAnterior = null;
-        if (id) {
-            const pedidoExistente = window.bancoPedidos.find(p => p.id === id);
-            statusAnterior = pedidoExistente?.status || null;
-        }
-
-        if (id) {
-            await updateDoc(doc(db, "pedidos", id), dados);
-        } else {
-            dados.numero_sequencial = await obterProximoNumeroPedido();
-            dados.data_criacao = serverTimestamp();
-            const docRef = await addDoc(collection(db, "pedidos"), dados);
-            pedidoId = docRef.id;
-            document.getElementById('pedido-id-atual').value = docRef.id;
-            document.getElementById('btn-cancelar-pedido').classList.remove('hidden');
-            atualizarTextoBotaoSalvar('editando');
-            // Atualiza o display do número imediatamente após criar
-            document.getElementById('pdf-n-display').innerText = '#' + dados.numero_sequencial.toString().padStart(3, '0');
-        }
-
-        // ==========================================
-        // LÓGICA DE PARCELAS POR STATUS
-        // ==========================================
-        const ESTADOS_COM_ESTOQUE_DESCONTADO = ['Produção', 'Em Entrega', 'Entregue'];
-        const entrandoEmProducao = statusAtual === 'Produção' && statusAnterior !== 'Produção';
-        const cancelandoComEstoqueDescontado = STATUS_ENCERRADOS.includes(statusAtual) &&
-            ESTADOS_COM_ESTOQUE_DESCONTADO.includes(statusAnterior);
-
-        if (statusAtual === 'Produção') {
-            // Remove parcelas antigas deste pedido e gera novas
-            const parcelasSnap = await getDocs(collection(db, "parcelas"));
-            const batchDelete = writeBatch(db);
-            let contador = 0;
-
-            parcelasSnap.forEach(docSnap => {
-                if (docSnap.data().pedidoId === pedidoId) {
-                    batchDelete.delete(docSnap.ref);
-                    contador++;
-                }
-            });
-
-            if (contador > 0) await batchDelete.commit();
-
-            await gerarParcelas(pedidoId, nomeCliente, dados.valor_total, condicaoPagamento, primeiroVencimento);
-
-            // Desconta estoque ao entrar em Produção (apenas na primeira vez)
-            if (entrandoEmProducao && dados.itens?.length > 0) {
-                await descontarEstoque(dados.itens);
-            }
-
-            await Swal.fire({
-                icon: 'success',
-                title: 'Pedido em PRODUÇÃO!',
-                text: 'Parcelas geradas e estoque atualizado.',
-                timer: 2000,
-                showConfirmButton: false
-            });
-
-        } else if (STATUS_ENCERRADOS.includes(statusAtual)) {
-            // Cancela parcelas pendentes quando pedido é cancelado/reprovado
-            await cancelarParcelasDoPedido(pedidoId);
-
-            // Estorna estoque se o pedido já tinha descontado
-            if (cancelandoComEstoqueDescontado && dados.itens?.length > 0) {
-                await estornarEstoque(dados.itens);
-                await Swal.fire({
-                    icon: 'info',
-                    title: `Pedido "${statusAtual}"`,
-                    text: 'Parcelas canceladas e estoque estornado automaticamente.',
-                    timer: 2500,
-                    showConfirmButton: false
-                });
-            } else {
-                await Swal.fire({
-                    icon: 'info',
-                    title: `Pedido "${statusAtual}"`,
-                    text: 'As parcelas pendentes foram canceladas no financeiro.',
-                    timer: 2500,
-                    showConfirmButton: false
-                });
-            }
-        }
-
-        await Swal.fire({
-            icon: 'success',
-            title: 'Sucesso!',
-            text: 'Pedido salvo com sucesso!',
-            timer: 2000,
-            showConfirmButton: false
-        });
-
-        await carregarMemoriaBanco();
-
-    } catch (error) {
-        console.error('❌ Erro ao salvar:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Erro',
-            text: 'Erro ao salvar pedido: ' + error.message,
-            confirmButtonColor: '#3b82f6'
-        });
-    } finally {
-        btn.innerHTML = textoOriginal;
-        btn.disabled = false;
-    }
+    const wrap = document.getElementById('wrap-clientes-pag');
+    if (wrap) { wrap.querySelector('tbody').innerHTML = html; const p = wrap.querySelector('.pag-ctrl'); if(p) p.outerHTML = _pagControles(total,_pag.clientes.pagina,'clientes'); }
+    const tbl = document.getElementById('lista-clientes'); if(tbl) tbl.innerHTML = html;
+    const ctrl = document.getElementById('pag-clientes'); if(ctrl) ctrl.innerHTML = _pagControles(total,_pag.clientes.pagina,'clientes');
 }
 
-function atualizarTextoBotaoSalvar(modo) {
-    const btn = document.getElementById('btn-salvar');
-    if (modo === 'editando') {
-        btn.innerHTML = '✏️ Atualizar Pedido';
-        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
-        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
-    } else {
-        btn.innerHTML = '📦 Salvar Pedido';
-        btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-        btn.classList.add('bg-green-600', 'hover:bg-green-700');
-    }
+// ── render individual produtos ──
+function _renderProdutos() {
+    const fatia = _fatiar('produtos');
+    const total = _pag.produtos.dados.length;
+    const html  = fatia.map(p => {
+        let ec='',et='';
+        if(p.estoque_atual!==undefined){
+            if(p.estoque_atual<=0){ec='text-red-600 font-bold';et='ESGOTADO';}
+            else if(p.estoque_minimo&&p.estoque_atual<=p.estoque_minimo){ec='text-orange-600 font-bold';et='BAIXO';}
+            else{ec='text-green-600';et=p.estoque_atual;}
+        }
+        return `<tr class="border-b text-sm hover:bg-gray-50">
+            <td class="p-2 border font-mono font-bold">${p.codigo||'---'}</td>
+            <td class="p-2 border">${p.descricao}</td>
+            <td class="p-2 border">${p.categoria||'-'}</td>
+            <td class="p-2 border">${p.marca||'-'}</td>
+            <td class="p-2 border font-bold">${window.formatarValorReais(p.valor_base)}</td>
+            <td class="p-2 border ${ec}">${et}</td>
+            <td class="p-2 border">
+                <button onclick="window.editarProduto('${p.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
+                <button onclick="window.excluirProduto('${p.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
+            </td></tr>`;
+    }).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-500">Nenhum produto encontrado</td></tr>';
+
+    const tbl = document.getElementById('lista-produtos'); if(tbl) tbl.innerHTML = html;
+    const ctrl = document.getElementById('pag-produtos'); if(ctrl) ctrl.innerHTML = _pagControles(total,_pag.produtos.pagina,'produtos');
 }
 
-// ==========================================
-// EVENT LISTENER DO BOTÃO SALVAR
-// ==========================================
-document.addEventListener('DOMContentLoaded', function() {
-    const btnSalvar = document.getElementById('btn-salvar');
-    if (btnSalvar) {
-        // Remove qualquer onclick inline e adiciona listener limpo
-        btnSalvar.removeAttribute('onclick');
-        btnSalvar.addEventListener('click', salvarPedidoAtual);
-        console.log('✅ Botão salvar configurado');
-    }
-});
-
-// ==========================================
-// FUNÇÕES DE CLIENTES
-// ==========================================
-document.getElementById('btn-salvar-cliente').addEventListener('click', async () => {
-    const id = document.getElementById('cli-id').value;
-    const nome = document.getElementById('cli-nome').value;
-
-    if (!nome) {
-        Swal.fire({ icon: 'warning', title: 'Campo obrigatório', text: 'O nome do cliente é obrigatório!', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    const telefone = document.getElementById('cli-telefone').value;
-    const documento = document.getElementById('cli-documento').value;
-    const email = document.getElementById('cli-email')?.value || '';
-    const nascimento = document.getElementById('cli-nascimento')?.value || '';
-    const limiteTexto = document.getElementById('cli-limite')?.value || '0,00';
-    const observacoes = document.getElementById('cli-obs')?.value || '';
-    const limite = parseFloat(limiteTexto.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
-
-    let codigo = '';
-    if (!id) {
-        // Novo cliente: gera próximo código sequencial
-        let maxCodigo = 0;
-        window.bancoClientes.forEach(c => {
-            if (c.codigo) {
-                const num = parseInt(c.codigo);
-                if (!isNaN(num) && num > maxCodigo) maxCodigo = num;
-            }
-        });
-        codigo = (maxCodigo + 1).toString().padStart(4, '0');
-    } else {
-        // Edição: preserva o código existente
-        const clienteExistente = window.bancoClientes.find(c => c.id === id);
-        codigo = clienteExistente?.codigo || '';
-        // Se por algum motivo não tem código, gera agora
-        if (!codigo) {
-            let maxCodigo = 0;
-            window.bancoClientes.forEach(c => {
-                if (c.codigo) {
-                    const num = parseInt(c.codigo);
-                    if (!isNaN(num) && num > maxCodigo) maxCodigo = num;
-                }
-            });
-            codigo = (maxCodigo + 1).toString().padStart(4, '0');
-        }
-    }
-
-    const d = {
-        codigo, nome, telefone, documento,
-        cep: document.getElementById('cli-cep').value,
-        endereco: document.getElementById('cli-endereco').value,
-        email, nascimento, limite, observacoes
-    };
-
-    try {
-        if (id) {
-            const clienteExistente = window.bancoClientes.find(c => c.id === id);
-            const nomeAntigo = clienteExistente?.nome || '';
-            await updateDoc(doc(db, "clientes", id), d);
-
-            // Se o nome mudou, propaga para pedidos e parcelas vinculados
-            if (nomeAntigo && nomeAntigo !== nome) {
-                const pedidosVinculados = window.bancoPedidos.filter(p => p.cliente_id === id);
-                if (pedidosVinculados.length > 0) {
-                    const batch = writeBatch(db);
-                    pedidosVinculados.forEach(p => {
-                        batch.update(doc(db, 'pedidos', p.id), { cliente_nome: nome });
-                    });
-                    await batch.commit();
-
-                    // Propaga também para parcelas (busca por cliente_nome antigo)
-                    const parcelasSnap = await getDocs(collection(db, 'parcelas'));
-                    const batchParc = writeBatch(db);
-                    let temParcelas = false;
-                    parcelasSnap.forEach(docSnap => {
-                        const dadosParcela = docSnap.data();
-                        if (dadosParcela.clienteNome === nomeAntigo || dadosParcela.cliente === nomeAntigo) {
-                            const atualizacao = { clienteNome: nome };
-                            // Garante que clienteId e clienteCodigo estão preenchidos
-                            if (!dadosParcela.clienteId && id) atualizacao.clienteId = id;
-                            if (!dadosParcela.clienteCodigo && clienteExistente?.codigo) atualizacao.clienteCodigo = clienteExistente.codigo;
-                            batchParc.update(docSnap.ref, atualizacao);
-                            temParcelas = true;
-                        }
-                    });
-                    if (temParcelas) await batchParc.commit();
-                }
-            }
-
-            Swal.fire({ icon: 'success', title: 'Sucesso!', text: 'Cliente atualizado!', timer: 2000, showConfirmButton: false });
-        } else {
-            await addDoc(collection(db, "clientes"), { ...d, data_cadastro: serverTimestamp() });
-            Swal.fire({ icon: 'success', title: 'Sucesso!', text: 'Cliente cadastrado!', timer: 2000, showConfirmButton: false });
-        }
-    } catch (error) {
-        console.error('Erro ao salvar cliente:', error);
-        Swal.fire({ icon: 'error', title: 'Erro', text: 'Erro ao salvar cliente!', confirmButtonColor: '#3b82f6' });
-    }
-
-    window.liberarLock(); // libera o lock após salvar
-    ['cli-id', 'cli-codigo', 'cli-nome', 'cli-telefone', 'cli-documento', 'cli-cep', 'cli-endereco', 'cli-email', 'cli-nascimento', 'cli-obs'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
-    });
-    document.getElementById('cli-limite').value = '0,00';
-    document.getElementById('btn-cancelar-cliente').classList.add('hidden');
-
-    carregarMemoriaBanco();
-});
-
-// ==========================================
-// FUNÇÃO PRINCIPAL - ABRIR PEDIDO
-// ==========================================
-window.abrirPedidoParaEdicao = function(id) {
-    const pedido = window.bancoPedidos.find(x => x.id === id);
-    if (!pedido) {
-        Swal.fire({ icon: 'error', title: 'Erro', text: 'Pedido não encontrado!', confirmButtonColor: '#3b82f6' });
-        return;
-    }
-
-    const cliente = window.bancoClientes.find(c => c.id === pedido.cliente_id);
-
-    bloquearCampos(false);
-    document.getElementById('aviso-bloqueio').classList.add('hidden');
-    document.getElementById('pedido-id-atual').value = pedido.id;
-
-    // Garante que o botão salvar nunca abre travado em "Salvando..."
-    const btnSalvar = document.getElementById('btn-salvar');
-    if (btnSalvar) {
-        btnSalvar.disabled = false;
-        btnSalvar.innerHTML = '✏️ Atualizar Pedido';
-        btnSalvar.classList.remove('bg-green-600', 'hover:bg-green-700', 'opacity-50', 'cursor-not-allowed');
-        btnSalvar.classList.add('bg-blue-600', 'hover:bg-blue-700');
-    }
-
-    const selectCliente = document.getElementById('input-cliente');
-    // Busca o nome atual do cliente pelo ID (não pelo nome salvo no pedido, que pode estar desatualizado)
-    const nomeClienteAtual = cliente?.nome || pedido.cliente_nome || '';
-    if (selectCliente && nomeClienteAtual) {
-        if ($.fn.select2) {
-            $(selectCliente).val(nomeClienteAtual).trigger('change');
-        } else {
-            selectCliente.value = nomeClienteAtual;
-        }
-        // Bloqueia troca de cliente em pedido existente
-        selectCliente.disabled = true;
-        if ($.fn.select2) $(selectCliente).next('.select2-container').css('pointer-events','none').css('opacity','0.6');
-    }
-
-    document.getElementById('pdf-n-display').innerText = '#' + (pedido.numero_sequencial?.toString().padStart(3, '0') || '???');
-
-    if (cliente) {
-        document.getElementById('cliente-telefone').innerText = cliente.telefone || '-';
-        document.getElementById('cliente-documento').innerText = cliente.documento || '-';
-        document.getElementById('cliente-endereco').innerText = cliente.endereco || '-';
-        document.getElementById('cliente-cep').innerText = cliente.cep || '-';
-        document.getElementById('dados-cliente-container').classList.remove('hidden');
-        document.getElementById('input-endereco').value = cliente.endereco || '';
-    }
-
-    document.getElementById('btn-cancelar-pedido').classList.remove('hidden');
-    atualizarTextoBotaoSalvar('editando');
-
-    // Atualiza status visual usando o objeto centralizado
-    if (pedido.status) {
-        const selectStatus = document.getElementById('select-status');
-        if (selectStatus) selectStatus.value = pedido.status;
-        atualizarBotoesStatus(pedido.status);
-        atualizarBarraProgresso(pedido.status);
-    }
-
-    // Bloqueia campos apenas para status operacionais bloqueados
-    if (STATUS_BLOQUEADOS.includes(pedido.status)) {
-        bloquearCampos(true);
-        const aviso = document.getElementById('aviso-bloqueio');
-        const spanStatus = document.getElementById('status-bloqueio');
-        if (aviso && spanStatus) {
-            spanStatus.innerText = pedido.status;
-            aviso.classList.remove('hidden');
-        }
-    }
-
-    if (pedido.frete) {
-        document.getElementById('input-km').value = pedido.frete.distancia || '0';
-        document.getElementById('input-litro').value = pedido.frete.preco_combustivel || '4.20';
-        document.getElementById('input-consumo').value = pedido.frete.consumo || '9.0';
-        document.getElementById('input-pedagio').value = (pedido.frete.pedagio || 0).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
-        if (pedido.frete.custo_combustivel) document.getElementById('custo-combustivel').innerText = pedido.frete.custo_combustivel;
-        if (pedido.frete.custo_total) document.getElementById('custo-total-frete').innerText = pedido.frete.custo_total;
-    }
-
-    if (pedido.desconto) document.getElementById('input-desconto').value = pedido.desconto;
-    if (pedido.acrescimo) document.getElementById('input-acrescimo').value = pedido.acrescimo.toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2});
-    if (pedido.motivo_acrescimo) document.getElementById('input-motivo-acrescimo').value = pedido.motivo_acrescimo;
-
-    if (pedido.condicao_pagamento) {
-        document.getElementById('select-condicao-pagamento').value = pedido.condicao_pagamento;
-        if (pedido.condicao_pagamento === 'Personalizado') {
-            document.getElementById('div-parcelas-personalizado').classList.remove('hidden');
-        }
-    }
-
-    if (pedido.primeiro_vencimento) {
-        document.getElementById('input-primeiro-vencimento').value = pedido.primeiro_vencimento;
-    }
-
-    const tbody = document.getElementById('tabela-itens');
-    tbody.innerHTML = '';
-
-    if (pedido.itens && pedido.itens.length > 0) {
-        pedido.itens.forEach((item, index) => {
-            let valorUnitario = 0;
-
-            if (typeof item.valor_unitario === 'string') {
-                valorUnitario = parseFloat(item.valor_unitario.replace('R$', '').trim().replace('.', '').replace(',', '.'));
-            } else if (typeof item.valor_unitario === 'number') {
-                valorUnitario = item.valor_unitario;
-            }
-
-            if (isNaN(valorUnitario)) valorUnitario = 0;
-
-            // Prioridade de busca: 1º id, 2º código, 3º nome (fallback para pedidos antigos)
-            let produtoEncontrado = null;
-            if (item.produto_id) {
-                produtoEncontrado = window.bancoProdutos.find(p => p.id === item.produto_id);
-            }
-            if (!produtoEncontrado && item.produto_codigo) {
-                produtoEncontrado = window.bancoProdutos.find(p => p.codigo === item.produto_codigo);
-            }
-            if (!produtoEncontrado && item.descricao) {
-                produtoEncontrado = window.bancoProdutos.find(p =>
-                    p.descricao?.trim().toLowerCase() === item.descricao.trim().toLowerCase()
-                );
-            }
-
-            const tr = document.createElement('tr');
-            tr.className = 'text-sm';
-            tr.dataset.produtoId = produtoEncontrado?.id || item.produto_id || '';
-            const selectId = 'produto-select-' + Date.now() + '-' + index + '-' + Math.random().toString(36).substr(2, 5);
-
-            let selectHtml = `<select id="${selectId}" class="w-full p-1 border rounded desc-item border-blue-300 focus:ring-2 focus:ring-blue-500 bg-gray-50 produto-select" style="width: 100%;" onchange="window.preencherProduto(this)">`;
-            selectHtml += '<option value="">Selecione um produto</option>';
-
-            window.bancoProdutos.forEach(p => {
-                const selected = (produtoEncontrado && p.id === produtoEncontrado.id) ? 'selected' : '';
-                selectHtml += `<option value="${p.id}" data-valor="${p.valor_base}" data-forn="${p.fornecedor || ''}" data-desc="${p.descricao}" ${selected}>${p.codigo ? '#' + p.codigo + ' - ' : ''}${p.descricao} - ${window.formatarValorReais(p.valor_base)}</option>`;
-            });
-
-            selectHtml += '</select>';
-
-            tr.innerHTML = `
-                <td class="p-2 border"><input type="number" value="${item.quantidade || 1}" class="w-16 p-1 border rounded qtd-item" onchange="window.calcularTudo()"></td>
-                <td class="p-2 border">${selectHtml}</td>
-                <td class="p-2 border"><input type="text" value="${item.fornecedor || ''}" class="w-full p-1 border rounded forn-item bg-gray-100" readonly></td>
-                <td class="p-2 border"><input type="text" value="${window.formatarValorReais(valorUnitario)}" class="w-24 p-1 border rounded valor-item bg-gray-100 text-right" readonly></td>
-                <td class="p-2 border total-linha">R$ 0,00</td>
-                <td class="p-2 border text-center"><button onclick="if(window.podeEditarPedido()) { this.closest('tr').remove(); window.calcularTudo(); } else { Swal.fire({ icon: 'error', title: 'Ação bloqueada', text: '❌ Não é possível remover itens de um pedido em andamento!', confirmButtonColor: '#3b82f6' }); }" class="text-red-500 font-bold">X</button></td>
-            `;
-
-            tbody.appendChild(tr);
-        });
-    } else {
-        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Nenhum item adicionado.</td></tr>';
-    }
-
-    setTimeout(() => {
-        document.querySelectorAll('.produto-select').forEach(select => {
-            if ($.fn.select2) {
-                $(select).select2({ placeholder: "Busque um produto...", allowClear: true, width: '100%' });
-            }
-        });
-    }, 100);
-
-    window.mostrarAba('aba-cadastro');
-    setTimeout(() => window.calcularTudo(), 500);
-};
-
-// ==========================================
-// FUNÇÕES DE EDIÇÃO E EXCLUSÃO
-// ==========================================
-window.editarCliente = async function(id) {
-    // Verifica se outro usuário está editando este cliente
-    const lock = await window.tentarAcquireLock('cliente', id);
-    const clienteObj = window.bancoClientes.find(cl => cl.id === id);
-
-    if (lock.bloqueado) {
-        Swal.fire({
-            icon: 'warning',
-            title: '🔒 Registro em uso',
-            html: `O cliente <strong>${clienteObj?.nome || id}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
-            confirmButtonColor: '#3b82f6',
-            confirmButtonText: 'Entendido'
-        });
-        return;
-    }
-    document.getElementById('cli-id').value = id;
-    document.getElementById('cli-codigo').value = clienteObj?.codigo || '';
-    document.getElementById('cli-nome').value = clienteObj?.nome || '';
-    document.getElementById('cli-telefone').value = clienteObj?.telefone || '';
-    document.getElementById('cli-documento').value = clienteObj?.documento || '';
-    document.getElementById('cli-cep').value = clienteObj?.cep || '';
-    document.getElementById('cli-endereco').value = clienteObj?.endereco || '';
-    document.getElementById('cli-email').value = clienteObj?.email || '';
-    document.getElementById('cli-nascimento').value = clienteObj?.nascimento || '';
-    document.getElementById('cli-limite').value = clienteObj?.limite ? parseFloat(clienteObj.limite).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
-    document.getElementById('cli-obs').value = clienteObj?.observacoes || '';
-    document.getElementById('btn-cancelar-cliente').classList.remove('hidden');
-    window.mostrarAba('aba-clientes');
-};
-
-window.editarProduto = async function(id) {
-    const produto = window.bancoProdutos.find(p => p.id === id);
-    const nomeProd = produto?.descricao || 'este produto';
-
-    const lock = await window.tentarAcquireLock('produto', id);
-    if (lock.bloqueado) {
-        Swal.fire({
-            icon: 'warning',
-            title: '🔒 Registro em uso',
-            html: `O produto <strong>${nomeProd}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
-            confirmButtonColor: '#3b82f6',
-            confirmButtonText: 'Entendido'
-        });
-        return;
-    }
-
-    if (typeof window.abrirCadastroCompletoProduto === 'function') {
-        window.abrirCadastroCompletoProduto(id);
-    }
-};
-
-window.excluirCliente = async (id) => {
-    // Bloqueia exclusão se cliente tiver pedidos vinculados
-    const pedidosVinculados = window.bancoPedidos.filter(p => p.cliente_id === id);
-    if (pedidosVinculados.length > 0) {
-        const cliente = window.bancoClientes.find(c => c.id === id);
-        Swal.fire({
-            icon: 'error',
-            title: 'Não é possível excluir',
-            html: `O cliente <strong>${cliente?.nome || ''}</strong> possui <strong>${pedidosVinculados.length} pedido(s)</strong> vinculado(s) e não pode ser excluído.<br><br>Para remover este cliente, primeiro exclua ou transfira os pedidos dele.`,
-            confirmButtonColor: '#3b82f6'
-        });
-        return;
-    }
-
-    const result = await Swal.fire({
-        title: 'Excluir cliente?', icon: 'warning',
-        showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Sim, excluir', cancelButtonText: 'Cancelar'
-    });
-    if (result.isConfirmed) {
-        await deleteDoc(doc(db, "clientes", id));
-        carregarMemoriaBanco();
-        Swal.fire({ icon: 'success', title: 'Excluído!', timer: 2000, showConfirmButton: false });
-    }
-};
-
-window.excluirProduto = async (id) => {
-    const result = await Swal.fire({
-        title: 'Excluir produto?', icon: 'warning',
-        showCancelButton: true, confirmButtonColor: '#dc2626', cancelButtonColor: '#6b7280',
-        confirmButtonText: 'Sim, excluir', cancelButtonText: 'Cancelar'
-    });
-    if (result.isConfirmed) {
-        await deleteDoc(doc(db, "produtos", id));
-        carregarMemoriaBanco();
-        Swal.fire({ icon: 'success', title: 'Excluído!', timer: 2000, showConfirmButton: false });
-    }
-};
 
 window.filtrarPedidos = (t) => {
     const tl = t.toLowerCase().replace('#', '');
-    const f = window.bancoPedidos.filter(p => {
+    _pag.pedidos.dados = window.bancoPedidos.filter(p => {
         const cliente = window.bancoClientes.find(cl => cl.id === p.cliente_id);
         const nomeAtual = cliente?.nome || p.cliente_nome || '';
         const codCliente = cliente?.codigo || '';
@@ -1890,69 +1280,34 @@ window.filtrarPedidos = (t) => {
                codCliente.includes(tl) ||
                numPedido.includes(tl);
     });
-    renderizarTabelaPedidosNoFilter(f);
+    _pag.pedidos.pagina = 1;
+    _renderPedidos();
 };
 
 window.filtrarClientes = function(termo) {
     const tl = termo.toLowerCase();
-    const filtrados = window.bancoClientes.filter(c =>
+    _pag.clientes.dados = window.bancoClientes.filter(c =>
         c.nome?.toLowerCase().includes(tl) ||
         (c.telefone && c.telefone.includes(termo)) ||
         (c.documento && c.documento.includes(termo)) ||
         (c.codigo && c.codigo.includes(termo))
     );
-
-    document.getElementById('lista-clientes').innerHTML = filtrados.map(c => {
-        const endereco = c.endereco || '-';
-        const enderecoResumido = endereco.length > 30 ? endereco.substring(0, 30) + '...' : endereco;
-        const limite = c.limite ? window.formatarValorReais(c.limite) : 'R$ 0,00';
-        return `
-        <tr class="border-b text-sm hover:bg-gray-50">
-            <td class="p-2 border">${c.codigo || '---'}</td>
-            <td class="p-2 border">${c.nome}</td>
-            <td class="p-2 border">${c.telefone || '-'}</td>
-            <td class="p-2 border">${enderecoResumido}</td>
-            <td class="p-2 border">${limite}</td>
-            <td class="p-2 border">
-                <button onclick="window.editarCliente('${c.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
-                <button onclick="window.excluirCliente('${c.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
-            </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="6" class="p-4 text-center text-gray-500">Nenhum cliente encontrado</td></tr>';
+    _pag.clientes.pagina = 1;
+    _renderClientes();
 };
-
 window.filtrarProdutos = function(termo) {
     const tl = termo.toLowerCase();
-    const filtrados = window.bancoProdutos.filter(p =>
+    _pag.produtos.dados = window.bancoProdutos.filter(p =>
         p.descricao?.toLowerCase().includes(tl) ||
         (p.categoria && p.categoria.toLowerCase().includes(tl)) ||
         (p.marca && p.marca.toLowerCase().includes(tl)) ||
         (p.codigo && p.codigo.includes(termo)) ||
         (p.codigo_barras && p.codigo_barras.includes(termo))
     );
-
-    document.getElementById('lista-produtos').innerHTML = filtrados.map(p => {
-        let estoqueClass = '', estoqueText = '';
-        if (p.estoque_atual !== undefined) {
-            if (p.estoque_atual <= 0) { estoqueClass = 'text-red-600 font-bold'; estoqueText = 'ESGOTADO'; }
-            else if (p.estoque_minimo && p.estoque_atual <= p.estoque_minimo) { estoqueClass = 'text-orange-600 font-bold'; estoqueText = 'BAIXO'; }
-            else { estoqueClass = 'text-green-600'; estoqueText = p.estoque_atual; }
-        }
-        return `
-        <tr class="border-b text-sm hover:bg-gray-50">
-            <td class="p-2 border font-mono font-bold">${p.codigo || '---'}</td>
-            <td class="p-2 border">${p.descricao}</td>
-            <td class="p-2 border">${p.categoria || '-'}</td>
-            <td class="p-2 border">${p.marca || '-'}</td>
-            <td class="p-2 border font-bold">${window.formatarValorReais(p.valor_base)}</td>
-            <td class="p-2 border ${estoqueClass}">${estoqueText}</td>
-            <td class="p-2 border">
-                <button onclick="window.editarProduto('${p.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
-                <button onclick="window.excluirProduto('${p.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
-            </td>
-        </tr>`;
-    }).join('') || '<tr><td colspan="7" class="p-4 text-center text-gray-500">Nenhum produto encontrado</td></tr>';
+    _pag.produtos.pagina = 1;
+    _renderProdutos();
 };
+
 
 window.cancelarEdicaoCliente = function() {
     window.liberarLock(); // libera o lock do cliente
