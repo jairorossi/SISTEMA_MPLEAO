@@ -1816,34 +1816,35 @@ window.abrirPedidoParaEdicao = function(id) {
     atualizarBotoesStatus(pedido.status || 'Orçamento');
     atualizarBarraProgresso(pedido.status || 'Orçamento');
 
-    // Preenche itens (bloqueio aplicado DEPOIS para cobrir os elementos recém-criados)
+    // Preenche itens usando adicionarProdutoNaTabela (mesma função do modal de produtos)
     const tbody = document.getElementById('tabela-itens');
     if (tbody) tbody.innerHTML = '';
     if (pedido.itens?.length > 0) {
         pedido.itens.forEach(item => {
-            window.adicionarLinha?.();
-            const linhas = document.querySelectorAll('#tabela-itens tr[data-produto-id]');
-            const tr = linhas[linhas.length - 1];
-            if (!tr) return;
-            tr.dataset.produtoId = item.produto_id || '';
-            const select = tr.querySelector('.produto-select');
-            const qtdEl  = tr.querySelector('.qtd-item');
-            const valEl  = tr.querySelector('.valor-item');
-            const fornEl = tr.querySelector('.forn-item');
-            if (select) {
-                const opt = Array.from(select.options).find(o => o.value === item.produto_id);
-                if (!opt) {
-                    const newOpt = new Option(item.descricao, item.produto_id, true, true);
-                    newOpt.dataset.valor = item.valor_unitario;
-                    newOpt.dataset.forn  = item.fornecedor || '';
-                    select.appendChild(newOpt);
+            // Monta objeto produto compatível com adicionarProdutoNaTabela
+            // Primeiro tenta achar no banco, senão usa os dados salvos no pedido
+            const produtoBanco = window.bancoProdutos.find(p => p.id === item.produto_id);
+            const produtoFake = {
+                id:          item.produto_id || '',
+                descricao:   item.descricao  || '',
+                fornecedor:  item.fornecedor || '',
+                valor_base:  item.valor_unitario || 0,
+                codigo:      item.produto_codigo || '',
+            };
+            const produto = produtoBanco || produtoFake;
+            // Adiciona a linha com a quantidade e valor corretos do pedido salvo
+            window.adicionarProdutoNaTabela?.(produto, item.quantidade);
+            // Corrige o valor_unitario caso tenha sido personalizado (diferente do valor_base atual)
+            setTimeout(() => {
+                const linhas = document.querySelectorAll('#tabela-itens tr[data-produto-id]');
+                const tr = linhas[linhas.length - 1];
+                if (!tr) return;
+                const valEl = tr.querySelector('.valor-item');
+                if (valEl && item.valor_unitario) {
+                    valEl.value = window.formatarValorReais(item.valor_unitario);
+                    window.calcularTudo?.();
                 }
-                select.value = item.produto_id;
-                if ($.fn.select2) $(select).trigger('change');
-            }
-            if (qtdEl)  qtdEl.value  = item.quantidade;
-            if (valEl)  valEl.value  = window.formatarValorReais(item.valor_unitario);
-            if (fornEl) fornEl.value = item.fornecedor || '';
+            }, 50);
         });
     }
 
@@ -1858,16 +1859,10 @@ window.abrirPedidoParaEdicao = function(id) {
         btnSalvar.classList.add('bg-blue-600','hover:bg-blue-700');
     }
 
-    // Aplica bloqueio APÓS preencher todos os itens — cobre selects e inputs criados dinamicamente
-    _aplicarBloqueioStatus(pedido.status);
-
+    // Aplica bloqueio após todos os timeouts do Select2 resolverem (adicionarProdutoNaTabela usa 100ms internamente)
     setTimeout(() => {
-        document.querySelectorAll('#tabela-itens .produto-select').forEach(s => {
-            if ($.fn.select2) $(s).select2({ placeholder: 'Busque um produto...', allowClear: true, width: '100%' });
-        });
-        // Reaplica bloqueio após Select2 re-renderizar os elementos
         _aplicarBloqueioStatus(pedido.status);
-    }, 150);
+    }, 400);
 
     window.mostrarAba('aba-cadastro');
     setTimeout(() => window.calcularTudo?.(), 500);
