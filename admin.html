@@ -574,6 +574,17 @@ window.executarRestore = async function() {
       const idRaw = String(row._id || '').trim();
       const { _id, ...dados } = row;
       Object.keys(dados).forEach(k => { if (dados[k] === '') delete dados[k]; });
+
+      // Normaliza data_criacao: aceita ISO ou "DD/MM/YYYY"
+      if (dados.data_criacao) {
+        const dc = String(dados.data_criacao).trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dc)) {
+          const [dd, mm, yyyy] = dc.split('/');
+          dados.data_criacao = new Date(`${yyyy}-${mm}-${dd}T12:00:00.000Z`).toISOString();
+        }
+        // Se já for ISO string, mantém como está (string — Firebase aceita)
+      }
+
       try {
         if (idRaw) {
           batch.set(doc(db, chave, idRaw), dados, { merge: true });

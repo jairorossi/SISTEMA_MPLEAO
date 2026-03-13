@@ -1185,7 +1185,16 @@ async function carregarMemoriaBanco() {
         await carregarParcelasDoFirebase();
 
         window.bancoPedidos.sort((a, b) => {
-    const toMs = d => d?.seconds ? d.seconds * 1000 : (d ? new Date(d).getTime() : 0);
+    const toMs = d => {
+        if (!d) return 0;
+        if (d.seconds) return d.seconds * 1000;
+        const s = String(d).trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+            const [dd, mm, yyyy] = s.split('/');
+            return new Date(`${yyyy}-${mm}-${dd}`).getTime();
+        }
+        return new Date(s).getTime() || 0;
+    };
     return toMs(b.data_criacao) - toMs(a.data_criacao);
 });
 
@@ -1295,6 +1304,19 @@ function renderizarTudo() {
     }
 }
 
+// Formata data_criacao aceitando: Firestore Timestamp, ISO string, "DD/MM/YYYY", ou nulo
+function _formatarDataPedido(dc) {
+    if (!dc) return '-';
+    try {
+        if (dc.seconds) return new Date(dc.seconds * 1000).toLocaleDateString('pt-BR');
+        const s = String(dc).trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s; // já está em BR
+        const d = new Date(s);
+        if (!isNaN(d)) return d.toLocaleDateString('pt-BR');
+    } catch(e) {}
+    return '-';
+}
+
 // ── render individual pedidos ──
 function _renderPedidos() {
     const fatia = _fatiar('pedidos');
@@ -1302,7 +1324,7 @@ function _renderPedidos() {
     const html  = fatia.map(p => `
         <tr class="border-b text-sm hover:bg-gray-50">
             <td class="p-2 border-r font-bold">#${p.numero_sequencial?.toString().padStart(3,'0') || 'S/N'}</td>
-            <td class="p-2 border-r">${p.data_criacao ? (p.data_criacao?.seconds ? new Date(p.data_criacao.seconds*1000) : new Date(p.data_criacao)).toLocaleDateString('pt-BR') : '-'}</td>
+            <td class="p-2 border-r">${_formatarDataPedido(p.data_criacao)}</td>
             <td class="p-2 border-r font-mono text-xs text-gray-500">${window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.codigo||'---'}</td>
             <td class="p-2 border-r">${window.bancoClientes.find(cl=>cl.id===p.cliente_id)?.nome||p.cliente_nome}</td>
             <td class="p-2 border-r">${gerarBadgeStatus(p.status)}</td>
@@ -1515,9 +1537,21 @@ window.exportarBackupRapido = async function() {
             const rows  = dados.map(d => {
                 const row = {};
                 col.campos.forEach(f => {
-                    let v = d[f];
-                    if (v && typeof v === 'object' && v.seconds) v = new Date(v.seconds * 1000).toLocaleDateString('pt-BR');
-                    else if (v && typeof v === 'object') v = JSON.stringify(v);
+                    // _id: o banco interno usa 'id', o Excel usa '_id'
+                    let v = f === '_id' ? (d.id || d._id || '') : d[f];
+                    // data_criacao: salva em ISO para restaurar corretamente
+                    if (f === 'data_criacao') {
+                        if (v && typeof v === 'object' && v.seconds) v = new Date(v.seconds * 1000).toISOString();
+                        else if (v && typeof v === 'string' && v.includes('/')) {
+                            // converte "13/03/2026" → ISO
+                            const [dd, mm, yyyy] = v.split('/');
+                            v = new Date(`${yyyy}-${mm}-${dd}T12:00:00.000Z`).toISOString();
+                        }
+                    } else if (v && typeof v === 'object' && v.seconds) {
+                        v = new Date(v.seconds * 1000).toISOString();
+                    } else if (v && typeof v === 'object') {
+                        v = JSON.stringify(v);
+                    }
                     row[f] = v ?? '';
                 });
                 return row;
