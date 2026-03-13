@@ -381,6 +381,11 @@ async function gerarParcelas(pedidoId, clienteNome, valorTotal, condicao, primei
         numeroParcelas = parseInt(condicao.replace('x', '')) || 1;
     }
 
+    // Busca o cliente para vincular código e ID — vínculo permanente pelo código
+    const clienteObj = window.bancoClientes.find(c => c.nome === clienteNome);
+    const clienteId     = clienteObj?.id     || '';
+    const clienteCodigo = clienteObj?.codigo || '';
+
     const valorParcela = valorTotal / numeroParcelas;
     let dataVencimento = primeiroVencimento ? new Date(primeiroVencimento + 'T12:00:00') : new Date();
 
@@ -389,15 +394,17 @@ async function gerarParcelas(pedidoId, clienteNome, valorTotal, condicao, primei
         vencimento.setMonth(vencimento.getMonth() + i);
 
         const parcela = {
-            pedidoId: pedidoId,
-            cliente: clienteNome,
+            pedidoId:      pedidoId,
+            clienteNome:   clienteNome,   // atualizado automaticamente se o nome mudar
+            clienteId:     clienteId,     // vínculo permanente pelo UID do Firebase
+            clienteCodigo: clienteCodigo, // vínculo permanente pelo código sequencial
             numeroParcela: i + 1,
             totalParcelas: numeroParcelas,
-            vencimento: vencimento.toISOString().split('T')[0],
-            valor: valorParcela,
-            status: 'pendente',
+            vencimento:    vencimento.toISOString().split('T')[0],
+            valor:         valorParcela,
+            status:        'pendente',
             dataPagamento: null,
-            dataCriacao: new Date().toISOString()
+            dataCriacao:   new Date().toISOString()
         };
 
         try {
@@ -585,10 +592,10 @@ window.filtrarFinanceiro = function() {
             }
         }
 
-        if (clienteFiltro !== 'todos' && p.cliente !== clienteFiltro) return false;
+        if (clienteFiltro !== 'todos' && (p.clienteNome || p.cliente) !== clienteFiltro) return false;
 
         if (busca) {
-            const clienteMatch = p.cliente?.toLowerCase().includes(busca);
+            const clienteMatch = (p.clienteNome || p.cliente || '').toLowerCase().includes(busca);
             const pedidoMatch = p.pedidoId?.toLowerCase().includes(busca);
             if (!clienteMatch && !pedidoMatch) return false;
         }
@@ -654,7 +661,7 @@ window.filtrarFinanceiro = function() {
 
             html += `
             <tr class="border-b hover:bg-gray-50 ${linhaClass}">
-                <td class="p-2 border">${p.cliente}</td>
+                <td class="p-2 border">${p.clienteNome || p.cliente || '-'}</td>
                 <td class="p-2 border font-bold">${numeroPedido}</td>
                 <td class="p-2 border">${parcelaTexto}</td>
                 <td class="p-2 border">${window.formatarDataParaExibir(p.vencimento)}</td>
@@ -1551,8 +1558,13 @@ document.getElementById('btn-salvar-cliente').addEventListener('click', async ()
                     const batchParc = writeBatch(db);
                     let temParcelas = false;
                     parcelasSnap.forEach(docSnap => {
-                        if (docSnap.data().clienteNome === nomeAntigo) {
-                            batchParc.update(docSnap.ref, { clienteNome: nome });
+                        const dadosParcela = docSnap.data();
+                        if (dadosParcela.clienteNome === nomeAntigo || dadosParcela.cliente === nomeAntigo) {
+                            const atualizacao = { clienteNome: nome };
+                            // Garante que clienteId e clienteCodigo estão preenchidos
+                            if (!dadosParcela.clienteId && id) atualizacao.clienteId = id;
+                            if (!dadosParcela.clienteCodigo && clienteExistente?.codigo) atualizacao.clienteCodigo = clienteExistente.codigo;
+                            batchParc.update(docSnap.ref, atualizacao);
                             temParcelas = true;
                         }
                     });
@@ -2001,7 +2013,7 @@ window.exportarBackupRapido = async function() {
             { key:'clientes', nome:'CLIENTES', campos:['_id','codigo','nome','telefone','documento','email','cep','endereco','nascimento','limite','observacoes'] },
             { key:'produtos',  nome:'PRODUTOS', campos:['_id','codigo','codigo_fornecedor','descricao','categoria','fornecedor','unidade','valor_base','custo','estoque_atual'] },
             { key:'pedidos',   nome:'PEDIDOS',  campos:['_id','numero_sequencial','status','cliente_id','cliente_nome','valor_total','condicao_pagamento','data_criacao'] },
-            { key:'parcelas',  nome:'PARCELAS', campos:['_id','pedidoId','clienteNome','valor','vencimento','status'] },
+            { key:'parcelas',  nome:'PARCELAS', campos:['_id','pedidoId','clienteNome','clienteId','clienteCodigo','valor','vencimento','status','numeroParcela','totalParcelas','dataCriacao','dataPagamento'] },
         ];
         const bancos = { clientes: window.bancoClientes, produtos: window.bancoProdutos, pedidos: window.bancoPedidos };
 
