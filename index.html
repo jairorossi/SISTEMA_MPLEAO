@@ -296,7 +296,7 @@
                             <button id="btn-cancelar-pedido" class="hidden w-full bg-gray-500 text-white font-bold py-2 rounded hover:bg-gray-600 transition" onclick="window.cancelarEdicao()">
                                 ❌ Cancelar Edição
                             </button>
-                            <button id="btn-salvar" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition">
+                            <button id="btn-salvar" onclick="window.salvarPedidoAtual()" class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition">
                                 📦 Salvar Pedido
                             </button>
                             <button id="btn-gerar-pdf" onclick="gerarPDF()" data-total="0,00" class="w-full bg-gray-800 text-white font-bold py-2 rounded hover:bg-gray-900 border border-gray-700 shadow-sm">
@@ -380,7 +380,7 @@
                     <p id="cep-status-cadastro" class="text-xs font-medium"></p>
                     <div class="flex items-end gap-2 justify-end">
                         <button id="btn-cancelar-cliente" class="hidden bg-gray-500 text-white font-bold py-2 px-4 rounded hover:bg-gray-600 transition" onclick="window.cancelarEdicaoCliente()">Cancelar</button>
-                        <button id="btn-salvar-cliente" class="bg-blue-600 text-white font-bold py-2 px-8 rounded hover:bg-blue-700 transition flex items-center gap-2">
+                        <button id="btn-salvar-cliente" onclick="window.salvarCliente()" class="bg-blue-600 text-white font-bold py-2 px-8 rounded hover:bg-blue-700 transition flex items-center gap-2">
                             <i class="fas fa-save"></i> Salvar Cliente
                         </button>
                     </div>

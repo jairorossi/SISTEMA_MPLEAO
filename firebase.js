@@ -1960,20 +1960,4 @@ window.cancelarEdicao = function() {
     window.novoPedido();
 };
 
-// ==========================================
-// EVENT LISTENERS DOS BOTÕES PRINCIPAIS
-// (ligados aqui pois firebase.js é type=module e carrega após scripts.js)
-// ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Botão salvar pedido
-    const btnSalvar = document.getElementById('btn-salvar');
-    if (btnSalvar) {
-        btnSalvar.addEventListener('click', () => window.salvarPedidoAtual());
-    }
 
-    // Botão salvar cliente
-    const btnSalvarCliente = document.getElementById('btn-salvar-cliente');
-    if (btnSalvarCliente) {
-        btnSalvarCliente.addEventListener('click', () => window.salvarCliente());
-    }
-});
