@@ -1569,7 +1569,10 @@ function _inicializarCamposPedido() {
     const tbody = document.getElementById('tabela-itens');
     if (tbody) tbody.innerHTML = '';
 
-    ['input-km','input-litro','input-consumo','input-pedagio','input-desconto','input-acrescimo','input-motivo-acrescimo','input-parcelas','input-primeiro-vencimento','input-previsao'].forEach(id => {
+    // Limpa apenas campos específicos do pedido — NÃO limpa litro/consumo (têm valores padrão fixos)
+    document.getElementById('input-km').value = '0';
+    ['input-pedagio','input-desconto','input-acrescimo','input-motivo-acrescimo',
+     'input-parcelas','input-primeiro-vencimento','input-previsao'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -1592,6 +1595,11 @@ function _inicializarCamposPedido() {
         btnSalvar.innerHTML = '💾 Salvar Pedido';
         btnSalvar.classList.remove('opacity-50','cursor-not-allowed','bg-green-600','hover:bg-green-700');
         btnSalvar.classList.add('bg-blue-600','hover:bg-blue-700');
+    }
+    const btnAdd = document.getElementById('btn-adicionar-itens');
+    if (btnAdd) {
+        btnAdd.disabled = false;
+        btnAdd.classList.remove('opacity-50','cursor-not-allowed');
     }
 
     window.calcularTudo?.();
