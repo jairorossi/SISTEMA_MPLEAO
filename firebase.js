@@ -1041,26 +1041,37 @@ function bloquearCampos(nivel) {
         _setBtn(document.querySelector('#linha-adicionar button'), true);
     }
 
-    // Botão Salvar: nunca desabilitado
-    const btnSalvar = document.getElementById('btn-salvar');
-    if (btnSalvar) {
-        btnSalvar.removeAttribute('disabled');
-        btnSalvar.classList.remove('opacity-50', 'cursor-not-allowed');
-    }
+    // btn-salvar é controlado por _aplicarBloqueioStatus, não aqui
 }
 
 // Aplica o nível correto de bloqueio conforme o status e atualiza o aviso visual
 function _aplicarBloqueioStatus(status) {
     const aviso  = document.getElementById('aviso-bloqueio');
     const spanSt = document.getElementById('status-bloqueio');
+    const btnSalvar   = document.getElementById('btn-salvar');
+    const btnAdicionar = document.getElementById('btn-adicionar-itens');
+
+    const _bloquearBtn = (btn, bloquear) => {
+        if (!btn) return;
+        if (bloquear) {
+            btn.setAttribute('disabled', 'disabled');
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.classList.remove('hover:bg-blue-700', 'hover:bg-green-700');
+        } else {
+            btn.removeAttribute('disabled');
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    };
 
     if (status === 'Orçamento') {
-        // Pedido salvo em orçamento: cliente fixo, resto editável
         bloquearCampos('cliente');
+        _bloquearBtn(btnAdicionar, false);
+        _bloquearBtn(btnSalvar, false);
         if (aviso) aviso.classList.add('hidden');
     } else {
-        // Produção, Em Entrega, Entregue, Cancelado, Não Aprovado: tudo travado
         bloquearCampos('tudo');
+        _bloquearBtn(btnAdicionar, true);
+        _bloquearBtn(btnSalvar, true);
         if (aviso && spanSt) {
             spanSt.innerText = status;
             aviso.classList.remove('hidden');
