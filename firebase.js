@@ -1073,7 +1073,7 @@ function renderizarTudo() {
             <td class="p-2 border">${enderecoResumido}</td>
             <td class="p-2 border">${limite}</td>
             <td class="p-2 border">
-                <button onclick="window.editarCliente('${c.id}','${c.nome}','${c.telefone || ''}','${c.documento || ''}','${c.endereco || ''}','${c.cep || ''}','${c.email || ''}','${c.nascimento || ''}','${c.limite || 0}','${c.observacoes || ''}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
+                <button onclick="window.editarCliente('${c.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
                 <button onclick="window.excluirCliente('${c.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
             </td>
         </tr>`;
@@ -1763,32 +1763,32 @@ window.abrirPedidoParaEdicao = function(id) {
 // ==========================================
 // FUNÇÕES DE EDIÇÃO E EXCLUSÃO
 // ==========================================
-window.editarCliente = async function(id, nome, telefone, documento, endereco, cep, email, nascimento, limite, observacoes) {
+window.editarCliente = async function(id) {
     // Verifica se outro usuário está editando este cliente
     const lock = await window.tentarAcquireLock('cliente', id);
+    const clienteObj = window.bancoClientes.find(cl => cl.id === id);
+
     if (lock.bloqueado) {
         Swal.fire({
             icon: 'warning',
             title: '🔒 Registro em uso',
-            html: `O cliente <strong>${nome}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
+            html: `O cliente <strong>${clienteObj?.nome || id}</strong> está sendo editado por <strong>${lock.usuario}</strong> (${lock.tempo}).<br><br>Aguarde ou entre em contato com esse usuário.`,
             confirmButtonColor: '#3b82f6',
             confirmButtonText: 'Entendido'
         });
         return;
     }
-
-    const clienteObj = window.bancoClientes.find(cl => cl.id === id);
     document.getElementById('cli-id').value = id;
     document.getElementById('cli-codigo').value = clienteObj?.codigo || '';
-    document.getElementById('cli-nome').value = nome;
-    document.getElementById('cli-telefone').value = telefone || '';
-    document.getElementById('cli-documento').value = documento || '';
-    document.getElementById('cli-cep').value = cep || '';
-    document.getElementById('cli-endereco').value = endereco || '';
-    document.getElementById('cli-email').value = email || '';
-    document.getElementById('cli-nascimento').value = nascimento || '';
-    document.getElementById('cli-limite').value = limite ? parseFloat(limite).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
-    document.getElementById('cli-obs').value = observacoes || '';
+    document.getElementById('cli-nome').value = clienteObj?.nome || '';
+    document.getElementById('cli-telefone').value = clienteObj?.telefone || '';
+    document.getElementById('cli-documento').value = clienteObj?.documento || '';
+    document.getElementById('cli-cep').value = clienteObj?.cep || '';
+    document.getElementById('cli-endereco').value = clienteObj?.endereco || '';
+    document.getElementById('cli-email').value = clienteObj?.email || '';
+    document.getElementById('cli-nascimento').value = clienteObj?.nascimento || '';
+    document.getElementById('cli-limite').value = clienteObj?.limite ? parseFloat(clienteObj.limite).toLocaleString('pt-BR', {minimumFractionDigits:2,maximumFractionDigits:2}) : '0,00';
+    document.getElementById('cli-obs').value = clienteObj?.observacoes || '';
     document.getElementById('btn-cancelar-cliente').classList.remove('hidden');
     window.mostrarAba('aba-clientes');
 };
@@ -1888,7 +1888,7 @@ window.filtrarClientes = function(termo) {
             <td class="p-2 border">${enderecoResumido}</td>
             <td class="p-2 border">${limite}</td>
             <td class="p-2 border">
-                <button onclick="window.editarCliente('${c.id}','${c.nome}','${c.telefone || ''}','${c.documento || ''}','${c.endereco || ''}','${c.cep || ''}','${c.email || ''}','${c.nascimento || ''}','${c.limite || 0}','${c.observacoes || ''}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
+                <button onclick="window.editarCliente('${c.id}')" class="text-blue-600 hover:text-blue-800 mr-2">✏️</button>
                 <button onclick="window.excluirCliente('${c.id}')" class="text-red-600 hover:text-red-800">🗑️</button>
             </td>
         </tr>`;
