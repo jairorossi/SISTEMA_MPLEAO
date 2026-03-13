@@ -557,8 +557,25 @@
                 </div>
             </div>
             <div class="bg-white p-4 md:p-6 rounded-lg shadow-sm">
-                <h3 class="text-lg font-semibold mb-4 text-gray-700">📊 Previsão de Recebimento</h3>
-                <div class="grid gap-1 h-44 items-end" id="grafico-previsao" style="grid-template-columns: repeat(12, 1fr);"></div>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-700">📅 Previsão de Recebimento</h3>
+                    <span class="text-xs text-gray-400">Parcelas pendentes por mês</span>
+                </div>
+                <div class="overflow-auto" style="max-height:320px">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0">
+                            <tr class="bg-gray-50 text-gray-600 text-left">
+                                <th class="p-2 border-b font-semibold">Mês / Ano</th>
+                                <th class="p-2 border-b font-semibold text-right">Valor a Receber</th>
+                                <th class="p-2 border-b font-semibold text-center">Parcelas</th>
+                                <th class="p-2 border-b font-semibold text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-previsao">
+                            <tr><td colspan="4" class="p-4 text-center text-gray-400">Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
