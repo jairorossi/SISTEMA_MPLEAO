@@ -497,6 +497,9 @@ async function carregarParcelasDoFirebase() {
     }
 }
 
+    // ── Tabela de previsão de recebimento por mês/ano ──
+    const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+	
 window.carregarDadosFinanceiros = async function() {
     await carregarParcelasDoFirebase();
 
@@ -542,8 +545,7 @@ window.carregarDadosFinanceiros = async function() {
     document.getElementById('total-atrasado').innerText = window.formatarValorReais(totalAtrasado);
     document.getElementById('total-recebido-mes').innerText = window.formatarValorReais(totalRecebidoMes);
 
-    // ── Tabela de previsão de recebimento por mês/ano ──
-    const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
 
     // Agrupa parcelas pendentes por mês+ano (sem limite de 12)
     const previsaoPorMes = {};
